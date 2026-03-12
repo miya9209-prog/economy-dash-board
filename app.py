@@ -84,6 +84,22 @@ st.markdown(
     .tiny {font-size:12px; color:#94a3b8;}
     .summary-caption {font-size:12px; color:#94a3b8; margin-top:4px; margin-bottom:8px;}
     div[data-testid="stDataFrame"] div[role="table"] {font-size:14px;}
+    @media (max-width: 980px) {
+        .block-container {padding-left: 0.8rem; padding-right: 0.8rem; max-width: 100%;}
+        .metric-card {min-height: unset; border-radius: 16px; padding: 14px 14px 12px 14px;}
+        .metric-label {font-size: 13px;}
+        .metric-value {font-size: 24px;}
+        .metric-sub {font-size: 13px;}
+        .time-chip {font-size: 13px; padding: 10px 12px; border-radius: 12px;}
+        .section-title {font-size: 1.05rem; margin-top: 0.8rem; margin-bottom: 0.55rem;}
+        .news-card {padding: 10px 12px; border-radius: 14px;}
+    }
+    @media (max-width: 768px) {
+        h1 {font-size: 2rem !important; line-height: 1.15;}
+        .metric-value {font-size: 21px;}
+        .source-note, .tiny, .summary-caption {font-size: 11px;}
+        [data-testid="stHorizontalBlock"] {gap: 0.5rem !important;}
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -488,6 +504,26 @@ def get_ccsi_from_snapshot() -> Dict:
 
 
 @st.cache_data(ttl=900)
+def get_fx_rates() -> Dict:
+    pairs = {
+        "달러": "KRW=X",
+        "위안": "CNYKRW=X",
+        "엔": "JPYKRW=X",
+        "유로": "EURKRW=X",
+    }
+    out = {}
+    for label, symbol in pairs.items():
+        snap = get_yf_snapshot(symbol, label)
+        val = snap.get("value")
+        if label == "달러" and (val is None or val < 100):
+            alt = get_yf_snapshot("USDKRW=X", label)
+            if alt.get("value") is not None:
+                snap = alt
+        out[label] = {"value": snap.get("value"), "delta": snap.get("delta"), "pct": snap.get("pct"), "source": snap.get("source")}
+    return out
+
+
+@st.cache_data(ttl=900)
 def get_gold_prices() -> Dict:
     # 1) 한국금거래소 사업자 페이지: 순금시세/변동/등락률이 비교적 잘 노출됨
     # 2) 한국금거래소 국내시세 페이지: 3.75g 기준값 보조
@@ -592,45 +628,42 @@ def get_opinet_avg_prices() -> Dict:
         return {"gasoline": None, "diesel": None, "note": "OPINET_API_KEY 필요", "source": "오피넷"}
 
     api_key = str(api_key).strip().strip('"').strip("'")
-    url = f"https://www.opinet.co.kr/api/avgAllPrice.do?out=json&certkey={api_key}"
-    try:
-        res = requests.get(url, headers=HEADERS, timeout=20)
-        res.raise_for_status()
-        data = res.json()
-        rows = []
-        if isinstance(data, dict):
-            if isinstance(data.get("RESULT"), list):
-                rows = data.get("RESULT", [])
+    urls = [
+        f"https://www.opinet.co.kr/api/avgAllPrice.do?out=json&code={api_key}",
+        f"https://www.opinet.co.kr/api/avgAllPrice.do?out=json&certkey={api_key}",
+    ]
+
+    last_note = None
+    for url in urls:
+        try:
+            res = requests.get(url, headers=HEADERS, timeout=20)
+            res.raise_for_status()
+            data = res.json()
+            result = data.get("RESULT", {}) if isinstance(data, dict) else {}
+            rows = result.get("OIL", []) if isinstance(result, dict) else []
+
+            mapping = {}
+            for row in rows:
+                prod = row.get("PRODCD")
+                if prod in {"B027", "D047"}:
+                    mapping[prod] = {
+                        "name": row.get("PRODNM"),
+                        "price": safe_float(row.get("PRICE")),
+                        "diff": safe_float(row.get("DIFF")),
+                        "date": row.get("TRADE_DT"),
+                    }
+
+            if mapping:
+                return {"gasoline": mapping.get("B027"), "diesel": mapping.get("D047"), "note": None, "source": "오피넷"}
+
+            if isinstance(result, dict) and result.get("OIL") == []:
+                last_note = "오피넷 응답은 정상이나 OIL 데이터가 비어 있습니다. API 키 형식을 다시 확인해 주세요."
             else:
-                result = data.get("RESULT", {})
-                if isinstance(result, dict) and result.get("OIL"):
-                    rows = result.get("OIL", [])
-                elif isinstance(result, dict) and result.get("CODE") not in (None, "00"):
-                    return {"gasoline": None, "diesel": None, "note": f"오피넷 오류 코드: {result.get('CODE')}", "source": "오피넷"}
+                last_note = f"오피넷 응답 파싱 실패: {str(data)[:180]}"
+        except Exception as e:
+            last_note = f"오피넷 조회 실패: {e}"
 
-        mapping = {}
-        for row in rows:
-            prod = row.get("PRODCD")
-            if prod in {"B027", "D047"}:
-                mapping[prod] = {
-                    "name": row.get("PRODNM"),
-                    "price": safe_float(row.get("PRICE")),
-                    "diff": safe_float(row.get("DIFF")),
-                    "date": row.get("TRADE_DT"),
-                }
-
-        if not mapping:
-            return {
-                "gasoline": None,
-                "diesel": None,
-                "note": f"오피넷 응답 파싱 실패: {str(data)[:180]}",
-                "source": "오피넷",
-            }
-
-        return {"gasoline": mapping.get("B027"), "diesel": mapping.get("D047"), "note": None, "source": "오피넷"}
-    except Exception as e:
-        return {"gasoline": None, "diesel": None, "note": f"오피넷 조회 실패: {e}", "source": "오피넷"}
-
+    return {"gasoline": None, "diesel": None, "note": last_note or "오피넷 데이터를 불러오지 못했습니다.", "source": "오피넷"}
 
 @st.cache_data(ttl=900)
 def get_news() -> List[Dict]:
@@ -763,6 +796,32 @@ def format_watchlist_for_display(df: pd.DataFrame) -> pd.DataFrame:
     out["전일대비"] = out["전일대비"].apply(lambda x: "-" if x is None or (isinstance(x, float) and math.isnan(x)) else (f"{int(round(x)):+,}" if abs(x - round(x)) < 0.00001 else f"{x:+,.2f}"))
     out["등락률(%)"] = out["등락률(%)"].apply(lambda x: "-" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{x:+.2f}")
     return out
+
+
+def fmt_signed_pct(pct: Optional[float], digits: int = 2) -> str:
+    if pct is None or (isinstance(pct, float) and math.isnan(pct)):
+        return "-"
+    return f"{pct:+.{digits}f}%"
+
+
+def render_fx_card(fx_rates: Dict):
+    usd = fx_rates.get("달러", {})
+    cny = fx_rates.get("위안", {})
+    jpy = fx_rates.get("엔", {})
+    eur = fx_rates.get("유로", {})
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">원화 환율</div>
+            <div class="metric-sub">달러 <span class="{change_class(usd.get('delta'))}">{fmt_number(usd.get('value'), 2)}원</span> ({fmt_signed_pct(usd.get('pct'))})</div>
+            <div class="metric-sub">위안 <span class="{change_class(cny.get('delta'))}">{fmt_number(cny.get('value'), 2)}원</span> ({fmt_signed_pct(cny.get('pct'))})</div>
+            <div class="metric-sub">엔 <span class="{change_class(jpy.get('delta'))}">{fmt_number(jpy.get('value'), 4)}원</span> ({fmt_signed_pct(jpy.get('pct'))})</div>
+            <div class="metric-sub">유로 <span class="{change_class(eur.get('delta'))}">{fmt_number(eur.get('value'), 2)}원</span> ({fmt_signed_pct(eur.get('pct'))})</div>
+            <div class="source-note">출처: Yahoo Finance</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_search_result(symbol: str, label: str):
@@ -949,7 +1008,7 @@ kospi = get_index_snapshot("KOSPI")
 kosdaq = get_index_snapshot("KOSDAQ")
 crude = get_yf_snapshot("BZ=F", "브렌트유")
 base_rate = get_bok_base_rate()
-ccsi = get_ccsi_from_snapshot()
+fx_rates = get_fx_rates()
 gold = get_gold_prices()
 opinet = get_opinet_avg_prices()
 
@@ -980,16 +1039,7 @@ with row2[0]:
     )
     st.caption(f"최근 변경일: {base_rate.get('date') or '-'}")
 with row2[1]:
-    metric_card(
-        "소비심리지수(CCSI)",
-        fmt_number(ccsi.get("value"), 1),
-        ccsi.get("delta"),
-        ccsi.get("pct"),
-        sub_prefix="전월 대비",
-        unit="p",
-        source=ccsi.get("source"),
-    )
-    st.caption(f"기준월: {ccsi.get('date') or '-'}")
+    render_fx_card(fx_rates)
 with row2[2]:
     metric_card(
         "국제유가 · 브렌트유",
@@ -1039,11 +1089,8 @@ summary_df = build_market_summary_df(kospi, kosdaq)
 st.dataframe(summary_df, use_container_width=True, hide_index=True)
 
 # Watch tables
-left, right = st.columns(2)
-with left:
-    render_expandable_table("코스피 주요 50개 종목", KOSPI_TOP_50, "kospi_visible")
-with right:
-    render_expandable_table("코스닥 주요 50개 종목", KOSDAQ_TOP_50, "kosdaq_visible")
+render_expandable_table("코스피 주요 50개 종목", KOSPI_TOP_50, "kospi_visible")
+render_expandable_table("코스닥 주요 50개 종목", KOSDAQ_TOP_50, "kosdaq_visible")
 
 st.markdown('<div class="section-title">주요 ETF 10개 종목</div>', unsafe_allow_html=True)
 etf_df = get_watchlist_table(ETF_TOP)
@@ -1076,40 +1123,26 @@ else:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # News + quick links
-news_col, link_col = st.columns([1.4, 0.6])
-with news_col:
-    st.markdown('<div class="section-title">주요 경제뉴스</div>', unsafe_allow_html=True)
-    news_items = get_news()
-    if not news_items:
-        st.warning("뉴스를 불러오지 못했습니다. RSS 차단 또는 일시 오류일 수 있습니다. 잠시 후 다시 시도해 주세요.")
-    else:
-        for item in news_items[:12]:
-            st.markdown(
-                f"""
-                <div class="news-card">
-                    <a href="{item['link']}" target="_blank">{item['title']}</a>
-                    <div class="news-source">{item['source']} {('· ' + item['published']) if item.get('published') else ''}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-with link_col:
-    st.markdown('<div class="section-title">주요 경제정보 확인 사이트</div>', unsafe_allow_html=True)
-    st.markdown('<div class="link-card">', unsafe_allow_html=True)
-    for title, url in QUICK_LINKS:
-        st.markdown(f'<a href="{url}" target="_blank">{title}</a>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">주요 경제뉴스</div>', unsafe_allow_html=True)
+news_items = get_news()
+if not news_items:
+    st.warning("뉴스를 불러오지 못했습니다. RSS 차단 또는 일시 오류일 수 있습니다. 잠시 후 다시 시도해 주세요.")
+else:
+    for item in news_items[:12]:
+        st.markdown(
+            f"""
+            <div class="news-card">
+                <a href="{item['link']}" target="_blank">{item['title']}</a>
+                <div class="news-source">{item['source']} {("· " + item['published']) if item.get('published') else ''}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-# Sidebar guidance
-with st.sidebar:
-    st.header("설정 안내")
-    st.write("이 대시보드는 60초마다 자동 새로고침됩니다.")
-    st.write("오피넷 키는 Streamlit Secrets에 문자열로 넣어야 합니다.")
-    st.code('OPINET_API_KEY = "발급받은인증키"', language="toml")
-    st.caption("배포 위치: .streamlit/secrets.toml 또는 Streamlit Cloud Secrets")
-    st.caption("키를 저장한 뒤에는 앱 재시작 또는 재배포를 한 번 해주세요.")
-    st.caption("금시세는 공식 공개 페이지를 스크래핑하는 방식이라, 사이트 구조가 바뀌면 일시적으로 비어 보일 수 있습니다.")
-    st.caption("뉴스는 언론사 RSS를 우선 사용하고 일부는 Google News RSS를 보조로 사용합니다.")
-    st.caption("한국증시 요약 표의 투자주체 동향 단위는 백만원입니다.")
+st.markdown('<div class="section-title">주요 경제정보 확인 사이트</div>', unsafe_allow_html=True)
+st.markdown('<div class="link-card">', unsafe_allow_html=True)
+for label, link in QUICK_LINKS:
+    st.markdown(f'<a href="{link}" target="_blank">{label}</a>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="footer-box">© miyawa 제작</div>', unsafe_allow_html=True)
