@@ -4,3 +4,5 @@ requests
 yfinance
 pytz
 feedparser
+lxml
+html5lib
