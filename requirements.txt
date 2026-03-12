@@ -1,9 +1,6 @@
 streamlit
 pandas
 requests
-beautifulsoup4
-lxml
-feedparser
 yfinance
 pytz
-streamlit-autorefresh
+feedparser
