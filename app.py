@@ -966,4 +966,4 @@ with right:
     </div>
     ''', unsafe_allow_html=True)
 
-st.markdown('<div class="footer">© MISHARP COMPANY by MIYAWA 제작. 무단전제 복제 게재를 금합니다.</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">© MISHARP COMPANY by MIYAWA 제작. 무단전제 복제 게재를 금합니다. 2026.</div>', unsafe_allow_html=True)
