@@ -333,15 +333,20 @@ def get_recent_bday_str():
     tz = pytz.timezone("Asia/Seoul")
     today = datetime.now(tz).date()
 
-    for i in range(7):
+    for i in range(10):
         d = today - timedelta(days=i)
         ds = d.strftime("%Y%m%d")
 
         try:
-            df = krx.get_market_trading_value_by_date(ds, ds, "KOSPI")
-            if df is not None and not df.empty:
+            df1 = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
+            df2 = krx.get_market_ohlcv_by_ticker(ds, market="KOSDAQ")
+
+            ok1 = df1 is not None and not df1.empty and "거래대금" in df1.columns and df1["거래대금"].fillna(0).sum() > 0
+            ok2 = df2 is not None and not df2.empty and "거래대금" in df2.columns and df2["거래대금"].fillna(0).sum() > 0
+
+            if ok1 or ok2:
                 return ds
-        except:
+        except Exception:
             pass
 
     return today.strftime("%Y%m%d")
