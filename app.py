@@ -329,17 +329,21 @@ def render_card(title, value, sub_html, source=None, note=None, big=True):
 # -----------------------------
 # HELPERS
 # -----------------------------
-def get_recent_bday_str(days_back=10):
-    today = datetime.now(pytz.timezone("Asia/Seoul")).date()
-    for i in range(days_back + 1):
+def get_recent_bday_str():
+    tz = pytz.timezone("Asia/Seoul")
+    today = datetime.now(tz).date()
+
+    for i in range(7):
         d = today - timedelta(days=i)
         ds = d.strftime("%Y%m%d")
+
         try:
-            df = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
+            df = krx.get_market_trading_value_by_date(ds, ds, "KOSPI")
             if df is not None and not df.empty:
                 return ds
-        except Exception:
+        except:
             pass
+
     return today.strftime("%Y%m%d")
 
 @st.cache_data(ttl=60)
