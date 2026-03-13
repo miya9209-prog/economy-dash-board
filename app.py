@@ -1,6 +1,6 @@
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import pytz
@@ -8,6 +8,7 @@ import requests
 import streamlit as st
 import yfinance as yf
 import feedparser
+from pykrx import stock as krx
 
 st.set_page_config(page_title="경제 대시보드", layout="wide")
 
@@ -27,18 +28,15 @@ st.markdown("""
   --btn-text:#0b1220;
   --btn-border:#c8d4e6;
 }
-
 html, body, [data-testid="stAppViewContainer"]{
   background: linear-gradient(180deg,#020817 0%, #071122 100%);
   color: var(--text);
 }
-
 .block-container{
   padding-top: 4rem !important;
   padding-bottom: 2.2rem;
   max-width: 1440px;
 }
-
 .main-title{
   font-size: 2rem;
   line-height: 1.16;
@@ -53,7 +51,6 @@ html, body, [data-testid="stAppViewContainer"]{
   opacity: .92;
   font-weight: 700;
 }
-
 .top-time{
   background: rgba(15,29,51,.72);
   border:1px solid rgba(80,110,150,.30);
@@ -64,14 +61,12 @@ html, body, [data-testid="stAppViewContainer"]{
   font-weight: 700;
   font-size: .98rem;
 }
-
 .section-title{
   font-size: 1.5rem;
   font-weight: 800;
   margin: 1.1rem 0 .8rem 0;
   color: #fff;
 }
-
 .card{
   background: linear-gradient(180deg, rgba(17,32,58,.96) 0%, rgba(28,40,64,.96) 100%);
   border: 1px solid rgba(89,115,156,.42);
@@ -161,7 +156,6 @@ div[data-testid="stHorizontalBlock"] > div{
   text-decoration:none;
   line-height:1.5;
 }
-
 .market-mini{
   width:100%;
   border-collapse: collapse;
@@ -183,7 +177,6 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#eef4ff;
   background: rgba(10,22,40,.26);
 }
-
 .footer{
   margin-top: 26px;
   padding-top: 16px;
@@ -191,7 +184,6 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#8ea0ba;
   text-align:center;
 }
-
 .stButton > button{
   border-radius: 12px !important;
   font-weight: 800 !important;
@@ -209,8 +201,6 @@ div[data-testid="stHorizontalBlock"] > div{
   color: var(--btn-text) !important;
   opacity: 1 !important;
 }
-
-/* 검색창 글씨/placeholder */
 .stTextInput input{
   color: #f8fafc !important;
   -webkit-text-fill-color: #f8fafc !important;
@@ -226,12 +216,10 @@ div[data-testid="stHorizontalBlock"] > div{
 [data-testid="stTextInput"] p{
   color: #dbe6f6 !important;
 }
-
 [data-testid="stDataFrame"]{
   border-radius: 14px;
   overflow:hidden;
 }
-
 @media (max-width: 900px){
   .block-container{
     padding-top: 4.4rem !important;
@@ -295,6 +283,24 @@ def fmt_int(v):
     return f"{int(round(v)):,}"
 
 
+def fmt_billion_krw(v):
+    if v is None:
+        return "-"
+    try:
+        return f"{v/100000000:,.0f}억원"
+    except Exception:
+        return "-"
+
+
+def fmt_hundred_million_from_million(v):
+    if v is None:
+        return "-"
+    try:
+        return f"{v/100:,.0f}억원"
+    except Exception:
+        return "-"
+
+
 def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     if diff is None:
         return f'{prefix} <span class="flat">정보 없음</span>'
@@ -320,6 +326,20 @@ def render_card(title, value, sub_html, source=None, note=None, big=True):
         html.append(f'<div class="note">{note}</div>')
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
+
+
+def get_recent_bday_str(days_back=10):
+    today = datetime.now(pytz.timezone("Asia/Seoul")).date()
+    for i in range(days_back + 1):
+        d = today - timedelta(days=i)
+        ds = d.strftime("%Y%m%d")
+        try:
+            df = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
+            if df is not None and not df.empty:
+                return ds
+        except Exception:
+            pass
+    return today.strftime("%Y%m%d")
 
 
 @st.cache_data(ttl=60)
@@ -370,55 +390,40 @@ def get_base_rate():
         "https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643",
         "https://www.bok.or.kr/portal/main/main.do",
     ]
-
     for url in urls:
         try:
             r = requests.get(url, headers=HEADERS, timeout=10)
             if not r.ok:
                 continue
             text = re.sub(r"\s+", " ", r.text)
-
-            # 기준금리 추이 목록 페이지 우선
-            m = re.search(r"202[0-9].*?([0-9]+\.[0-9]+)\s*</", text)
-            if m:
-                v = float(m.group(1))
-                if 0.5 <= v <= 10:
-                    return {"ok": True, "value": v, "message": "직전 변경 대비 정보는 별도 미연결"}
-
-            # 메인 페이지 fallback
             patterns = [
-                r"한국은행기준금리\s*([0-9]+\.[0-9]+)\s*%",
-                r"기준금리\s*([0-9]+\.[0-9]+)\s*%",
+                r"기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)\s*",
+                r"한국은행기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)\s*",
             ]
             for p in patterns:
-                m2 = re.search(p, text)
-                if m2:
-                    v = float(m2.group(1))
+                m = re.search(p, text)
+                if m:
+                    v = float(m.group(1))
                     if 0.5 <= v <= 10:
                         return {"ok": True, "value": v, "message": "직전 변경 대비 정보는 별도 미연결"}
         except Exception:
             continue
-
     return {"ok": False, "message": "기준금리 파싱 실패"}
 
 
 @st.cache_data(ttl=1800)
 def get_gold_kr():
-    # 1차: 한국금거래소 계열
     candidate_urls = [
         "https://koreagoldx.co.kr/",
         "https://jongro.koreagoldx.co.kr/",
         "https://cheongna.koreagoldx.co.kr/",
         "https://m.koreagoldx.co.kr/price/gold",
-        # 2차: 대체 공개 금시세 페이지
         "https://www.kgoldse.co.kr/",
         "https://www.goldsilvershop.co.kr/",
         "https://www.kumsise.com/",
     ]
-
     buy = None
     sell = None
-    note = None
 
     for url in candidate_urls:
         try:
@@ -427,7 +432,6 @@ def get_gold_kr():
                 continue
             text = re.sub(r"\s+", " ", r.text)
 
-            # 패턴 1: 순금 Gold24k-3.75g 1,025,000원 ... 879,000원 ...
             p1 = re.search(
                 r"순금(?:시세)?\s*Gold24k[-,]3[.,]75g\s*([0-9,]{5,})원?.{0,40}?([0-9,]{5,})원",
                 text,
@@ -441,7 +445,6 @@ def get_gold_kr():
                 if 200000 <= s <= 3000000 and s != 0:
                     sell = s
 
-            # 패턴 2: 내가 살때 / 내가 팔때
             if buy is None:
                 for patt in [
                     r"내가\s*살\s*때[^0-9]{0,40}([0-9,]{5,})",
@@ -467,7 +470,7 @@ def get_gold_kr():
                             break
 
             if buy is not None or sell is not None:
-                return {"ok": True, "buy": buy, "sell": sell, "message": note}
+                return {"ok": True, "buy": buy, "sell": sell, "message": None}
         except Exception:
             continue
 
@@ -491,7 +494,6 @@ def get_opinet():
         f"http://www.opinet.co.kr/api/avgAllPrice.do?out=json&code={key}",
         f"http://www.opinet.co.kr/api/avgAllPrice.do?out=json&certkey={key}",
     ]
-
     last_text = ""
     for url in urls:
         try:
@@ -525,25 +527,83 @@ def get_opinet():
     return {"ok": False, "message": f"오피넷 응답에 유가 데이터가 없습니다. ({last_text[:120]})"}
 
 
-@st.cache_data(ttl=600)
-def get_market_overview(kospi_data, kosdaq_data):
-    ks = yf.Ticker("^KS11").history(period="5d")
-    kq = yf.Ticker("^KQ11").history(period="5d")
-
-    def safe_last(df, col):
+@st.cache_data(ttl=900)
+def get_investor_deposit():
+    urls = [
+        "https://freesis.kofia.or.kr/",
+        "https://www.kofia.or.kr/",
+    ]
+    for url in urls:
         try:
-            return float(df[col].dropna().iloc[-1])
-        except Exception:
-            return None
+            r = requests.get(url, headers=HEADERS, timeout=10)
+            if not r.ok:
+                continue
+            text = re.sub(r"\s+", " ", r.text)
 
-    return {
-        "종합주가지수": f"코스피 {fmt_num(kospi_data['price']) if kospi_data else '-'} / 코스닥 {fmt_num(kosdaq_data['price']) if kosdaq_data else '-'}",
-        "거래량": f"코스피 {fmt_int(safe_last(ks, 'Volume')) if not ks.empty else '-'} / 코스닥 {fmt_int(safe_last(kq, 'Volume')) if not kq.empty else '-'}",
-        "거래대금": "야후 데이터 기준 별도 미제공",
-        "고객예탁금": "공개 API 미연결",
-        "외국인 동향": "공개 API 미연결",
-        "기관 동향": "공개 API 미연결",
+            # 예: 투자자예탁금: 백만원 | 03/06: 129,957,423 -929,893 -0.71%
+            m = re.search(r"투자자예탁금[^0-9]{0,50}([0-9,]{5,})", text)
+            if m:
+                val = int(m.group(1).replace(",", ""))
+                return {"ok": True, "value_million": val}
+        except Exception:
+            continue
+    return {"ok": False, "value_million": None}
+
+
+@st.cache_data(ttl=900)
+def get_market_overview():
+    ds = get_recent_bday_str()
+
+    result = {
+        "date": ds,
+        "trading_value_kospi": None,
+        "trading_value_kosdaq": None,
+        "foreign_net_kospi": None,
+        "foreign_net_kosdaq": None,
+        "inst_net_kospi": None,
+        "inst_net_kosdaq": None,
+        "deposit_million": None,
     }
+
+    try:
+        df_kospi = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
+        if df_kospi is not None and not df_kospi.empty and "거래대금" in df_kospi.columns:
+            result["trading_value_kospi"] = float(df_kospi["거래대금"].fillna(0).sum())
+    except Exception:
+        pass
+
+    try:
+        df_kosdaq = krx.get_market_ohlcv_by_ticker(ds, market="KOSDAQ")
+        if df_kosdaq is not None and not df_kosdaq.empty and "거래대금" in df_kosdaq.columns:
+            result["trading_value_kosdaq"] = float(df_kosdaq["거래대금"].fillna(0).sum())
+    except Exception:
+        pass
+
+    try:
+        inv_kospi = krx.get_market_trading_value_by_investor(ds, ds, "KOSPI")
+        if inv_kospi is not None and not inv_kospi.empty:
+            if "외국인합계" in inv_kospi.index:
+                result["foreign_net_kospi"] = float(inv_kospi.loc["외국인합계", "순매수"])
+            if "기관합계" in inv_kospi.index:
+                result["inst_net_kospi"] = float(inv_kospi.loc["기관합계", "순매수"])
+    except Exception:
+        pass
+
+    try:
+        inv_kosdaq = krx.get_market_trading_value_by_investor(ds, ds, "KOSDAQ")
+        if inv_kosdaq is not None and not inv_kosdaq.empty:
+            if "외국인합계" in inv_kosdaq.index:
+                result["foreign_net_kosdaq"] = float(inv_kosdaq.loc["외국인합계", "순매수"])
+            if "기관합계" in inv_kosdaq.index:
+                result["inst_net_kosdaq"] = float(inv_kosdaq.loc["기관합계", "순매수"])
+    except Exception:
+        pass
+
+    dep = get_investor_deposit()
+    if dep.get("ok"):
+        result["deposit_million"] = dep.get("value_million")
+
+    return result
 
 
 def make_stock_table(items):
@@ -579,7 +639,6 @@ def get_news():
         ("경향신문", "https://www.khan.co.kr/rss/rssdata/economy_news.xml"),
     ]
     items = []
-
     for source, url in feeds:
         try:
             parsed = feedparser.parse(url)
@@ -640,6 +699,7 @@ base_rate = get_base_rate()
 brent = get_brent()
 opinet = get_opinet()
 fx = get_fx_card_data()
+market_over = get_market_overview()
 
 st.markdown('<div class="section-title">오늘의 핵심 지표</div>', unsafe_allow_html=True)
 
@@ -726,10 +786,18 @@ with r2[3]:
                     big=False)
 
 st.markdown('<div class="section-title">오늘의 한국증시</div>', unsafe_allow_html=True)
-overview = get_market_overview(kospi, kosdaq)
+
+market_rows = {
+    "종합주가지수": f"코스피 {fmt_num(kospi['price']) if kospi else '-'} / 코스닥 {fmt_num(kosdaq['price']) if kosdaq else '-'}",
+    "거래량": f"코스피·코스닥 개별 종목 합산은 표 하단 종목표 참고",
+    "거래대금": f"코스피 {fmt_billion_krw(market_over.get('trading_value_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('trading_value_kosdaq'))}",
+    "고객예탁금": fmt_hundred_million_from_million(market_over.get("deposit_million")),
+    "외국인 동향": f"코스피 {fmt_billion_krw(market_over.get('foreign_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('foreign_net_kosdaq'))}",
+    "기관 동향": f"코스피 {fmt_billion_krw(market_over.get('inst_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('inst_net_kosdaq'))}",
+}
 
 rows = ['<table class="market-mini"><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>']
-for k, v in overview.items():
+for k, v in market_rows.items():
     rows.append(f"<tr><td>{k}</td><td>{v}</td></tr>")
 rows.append("</tbody></table>")
 st.markdown("".join(rows), unsafe_allow_html=True)
@@ -749,7 +817,6 @@ KOSPI_50 = [
     ("SK텔레콤","017670.KS"),("CJ제일제당","097950.KS"),("LG전자","066570.KS"),("현대글로비스","086280.KS"),
     ("강원랜드","035250.KS"),("한진칼","180640.KS")
 ]
-
 KOSDAQ_50 = [
     ("에코프로비엠","247540.KQ"),("에코프로","086520.KQ"),("HLB","028300.KQ"),("알테오젠","196170.KQ"),
     ("레인보우로보틱스","277810.KQ"),("리가켐바이오","141080.KQ"),("휴젤","145020.KQ"),("클래시스","214150.KQ"),
@@ -765,7 +832,6 @@ KOSDAQ_50 = [
     ("고영","098460.KQ"),("제이시스메디칼","287410.KQ"),("디어유","376300.KQ"),("오스템임플란트","048260.KQ"),
     ("루닛","328130.KQ"),("셀바스AI","108860.KQ")
 ]
-
 ETF_10 = [
     ("KODEX 200","069500.KS"),("TIGER 200","102110.KS"),("KODEX 코스닥150","229200.KS"),("TIGER 미국S&P500","360750.KS"),
     ("KODEX 미국S&P500TR","379800.KS"),("TIGER 미국나스닥100","133690.KS"),("KODEX 2차전지산업","305720.KS"),
@@ -830,6 +896,7 @@ with right:
       <a href="https://ecos.bok.or.kr/" target="_blank">한국은행 ECOS</a>
       <a href="https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643" target="_blank">한국은행 기준금리 추이</a>
       <a href="https://data.krx.co.kr/" target="_blank">KRX 정보데이터시스템</a>
+      <a href="https://freesis.kofia.or.kr/" target="_blank">금융투자협회 FreeSIS</a>
       <a href="https://www.opinet.co.kr/" target="_blank">오피넷</a>
       <a href="https://koreagoldx.co.kr/" target="_blank">한국금거래소</a>
       <a href="https://www.index.go.kr/" target="_blank">국가지표체계</a>
