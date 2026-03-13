@@ -1,3 +1,4 @@
+import json
 import math
 import re
 from datetime import datetime
@@ -7,15 +8,178 @@ import pandas as pd
 import pytz
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 import yfinance as yf
 
-st.set_page_config(page_title="경제 대시보드", layout="wide")
+st.set_page_config(
+    page_title="경제 대시보드 | 한국 증시 현황, 코스피 코스닥, 환율, 유가, 금시세",
+    layout="wide"
+)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
 }
 
+# ---------------------------------
+# SEO SETTINGS
+# ---------------------------------
+DEFAULT_SITE_URL = "https://economy-dash-board.streamlit.app"
+DEFAULT_OG_IMAGE = "https://economy-dash-board.streamlit.app/"
+
+SITE_URL = DEFAULT_SITE_URL
+OG_IMAGE_URL = DEFAULT_OG_IMAGE
+
+try:
+    SITE_URL = st.secrets.get("SITE_URL", DEFAULT_SITE_URL)
+except Exception:
+    SITE_URL = DEFAULT_SITE_URL
+
+try:
+    OG_IMAGE_URL = st.secrets.get("OG_IMAGE_URL", DEFAULT_OG_IMAGE)
+except Exception:
+    OG_IMAGE_URL = DEFAULT_OG_IMAGE
+
+SEO_TITLE = "경제 대시보드 | 한국 증시 현황, 코스피 코스닥, 환율, 유가, 금시세"
+SEO_DESCRIPTION = (
+    "경제 대시보드는 코스피, 코스닥, 한국 증시 현황, 원화환율, 국제유가, 국내 유가, "
+    "금시세, 기준금리, ETF 시세, 경제뉴스를 한 화면에서 확인할 수 있는 실시간 경제 정보 페이지입니다."
+)
+SEO_KEYWORDS = (
+    "경제 대시보드, 한국 증시 현황, 코스피, 코스닥, 코스피 코스닥 실시간, "
+    "오늘의 환율, 오늘의 금시세, 국제유가, 한국 기준금리, ETF 시세, 경제뉴스"
+)
+
+def inject_seo_meta():
+    json_ld = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "경제 대시보드",
+        "url": SITE_URL,
+        "description": SEO_DESCRIPTION,
+        "inLanguage": "ko-KR",
+        "publisher": {
+            "@type": "Organization",
+            "name": "MISHARP COMPANY by MIYAWA"
+        }
+    }
+
+    webpage_ld = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": SEO_TITLE,
+        "url": SITE_URL,
+        "description": SEO_DESCRIPTION,
+        "inLanguage": "ko-KR",
+        "about": [
+            {"@type": "Thing", "name": "코스피"},
+            {"@type": "Thing", "name": "코스닥"},
+            {"@type": "Thing", "name": "환율"},
+            {"@type": "Thing", "name": "국제유가"},
+            {"@type": "Thing", "name": "금시세"},
+            {"@type": "Thing", "name": "기준금리"}
+        ]
+    }
+
+    faq_ld = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "경제 대시보드는 무엇을 보여주나요?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "경제 대시보드는 코스피, 코스닥, 원화환율, 국제유가, 국내 유가, 금시세, 기준금리, ETF 시세와 주요 경제뉴스를 한 화면에서 확인할 수 있도록 구성된 경제 정보 페이지입니다."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "경제 대시보드는 어떻게 활용하면 좋나요?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "주식 투자자는 시장 흐름과 외국인 및 기관 수급, 거래대금, 환율, 유가를 함께 참고할 수 있고, 자영업자나 쇼핑몰 운영자는 환율과 유가, 금리 변화를 사업 전략과 원가 관리에 참고할 수 있습니다."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "코스피와 코스닥의 차이는 무엇인가요?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "코스피는 한국 유가증권시장의 대표 지수로 대형주 중심의 흐름을 보여주고, 코스닥은 성장주, 기술주, 중소형주 중심의 시장 분위기를 보여주는 지수입니다."
+                }
+            }
+        ]
+    }
+
+    seo_html = f"""
+    <script>
+    (function() {{
+        const title = {json.dumps(SEO_TITLE)};
+        const description = {json.dumps(SEO_DESCRIPTION)};
+        const keywords = {json.dumps(SEO_KEYWORDS)};
+        const canonicalUrl = {json.dumps(SITE_URL)};
+        const ogImage = {json.dumps(OG_IMAGE_URL)};
+
+        document.title = title;
+
+        function setMeta(attr, key, value) {{
+            let el = document.head.querySelector(`meta[${{attr}}="${{key}}"]`);
+            if (!el) {{
+                el = document.createElement('meta');
+                el.setAttribute(attr, key);
+                document.head.appendChild(el);
+            }}
+            el.setAttribute('content', value);
+        }}
+
+        function setLink(rel, href) {{
+            let el = document.head.querySelector(`link[rel="${{rel}}"]`);
+            if (!el) {{
+                el = document.createElement('link');
+                el.setAttribute('rel', rel);
+                document.head.appendChild(el);
+            }}
+            el.setAttribute('href', href);
+        }}
+
+        setMeta('name', 'description', description);
+        setMeta('name', 'keywords', keywords);
+        setMeta('property', 'og:type', 'website');
+        setMeta('property', 'og:title', title);
+        setMeta('property', 'og:description', description);
+        setMeta('property', 'og:url', canonicalUrl);
+        setMeta('property', 'og:image', ogImage);
+        setMeta('name', 'twitter:card', 'summary_large_image');
+        setMeta('name', 'twitter:title', title);
+        setMeta('name', 'twitter:description', description);
+        setMeta('name', 'twitter:image', ogImage);
+        setLink('canonical', canonicalUrl);
+
+        function upsertJsonLd(id, payload) {{
+            let el = document.head.querySelector(`#${{id}}`);
+            if (!el) {{
+                el = document.createElement('script');
+                el.type = 'application/ld+json';
+                el.id = id;
+                document.head.appendChild(el);
+            }}
+            el.textContent = JSON.stringify(payload);
+        }}
+
+        upsertJsonLd('seo-web-site', {json.dumps(json_ld, ensure_ascii=False)});
+        upsertJsonLd('seo-web-page', {json.dumps(webpage_ld, ensure_ascii=False)});
+        upsertJsonLd('seo-faq-page', {json.dumps(faq_ld, ensure_ascii=False)});
+    }})();
+    </script>
+    """
+    components.html(seo_html, height=0, width=0)
+
+inject_seo_meta()
+
+# -----------------------------
+# STYLE
+# -----------------------------
 st.markdown("""
 <style>
 :root{
@@ -63,7 +227,7 @@ html, body, [data-testid="stAppViewContainer"]{
 .section-title{
   font-size: 1.5rem;
   font-weight: 800;
-  margin: 1.1rem 0 .8rem 0;
+  margin: 1.15rem 0 .85rem 0;
   color: #fff;
 }
 .card{
@@ -176,12 +340,38 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#eef4ff;
   background: rgba(10,22,40,.26);
 }
+.seo-box{
+  margin-top: 28px;
+  padding: 24px 22px;
+  border: 1px solid rgba(89,115,156,.30);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(12,24,42,.92) 0%, rgba(18,30,49,.92) 100%);
+}
+.seo-box h2{
+  font-size: 1.45rem;
+  margin: 0 0 16px 0;
+  color: #fff;
+  font-weight: 800;
+}
+.seo-box h3{
+  font-size: 1.08rem;
+  margin: 22px 0 8px 0;
+  color: #eef4ff;
+  font-weight: 800;
+}
+.seo-box p{
+  margin: 0 0 12px 0;
+  color: #d7e2f1;
+  line-height: 1.85;
+  font-size: .98rem;
+}
 .footer{
   margin-top: 26px;
   padding-top: 16px;
   border-top:1px solid rgba(90,110,139,.25);
   color:#8ea0ba;
   text-align:center;
+  line-height: 1.8;
 }
 .stButton > button{
   border-radius: 12px !important;
@@ -248,6 +438,19 @@ div[data-testid="stHorizontalBlock"] > div{
   .card .value.big{ font-size:1.38rem; }
   .card .sub{ font-size:.93rem; }
   .top-time{ font-size:.92rem; }
+  .seo-box{
+    padding: 18px 16px;
+  }
+  .seo-box h2{
+    font-size: 1.25rem;
+  }
+  .seo-box h3{
+    font-size: 1rem;
+  }
+  .seo-box p{
+    font-size: .94rem;
+    line-height: 1.8;
+  }
   div[data-testid="stHorizontalBlock"]{
     gap: 12px !important;
   }
@@ -259,7 +462,9 @@ div[data-testid="stHorizontalBlock"] > div{
 </style>
 """, unsafe_allow_html=True)
 
-
+# -----------------------------
+# FORMATTERS
+# -----------------------------
 def fmt_num(v, digits=2):
     if v is None:
         return "-"
@@ -269,7 +474,6 @@ def fmt_num(v, digits=2):
     except Exception:
         pass
     return f"{v:,.{digits}f}"
-
 
 def fmt_int(v):
     if v is None:
@@ -281,7 +485,6 @@ def fmt_int(v):
         pass
     return f"{int(round(v)):,}"
 
-
 def fmt_billion_krw(v):
     if v is None:
         return "-"
@@ -291,7 +494,6 @@ def fmt_billion_krw(v):
     except Exception:
         return "-"
 
-
 def fmt_hundred_million_from_million(v):
     if v is None:
         return "-"
@@ -299,7 +501,6 @@ def fmt_hundred_million_from_million(v):
         return f"{v/100:,.0f}억원"
     except Exception:
         return "-"
-
 
 def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     if diff is None:
@@ -311,7 +512,6 @@ def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     else:
         body = f"{arrow} {diff:+,.2f}{unit} ({pct:+.2f}%)"
     return f'{prefix} <span class="{cls}">{body}</span>'
-
 
 def render_card(title, value, sub_html, source=None, note=None, big=True):
     value_class = "value big" if big else "value"
@@ -327,7 +527,9 @@ def render_card(title, value, sub_html, source=None, note=None, big=True):
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
 
-
+# -----------------------------
+# DATA HELPERS
+# -----------------------------
 @st.cache_data(ttl=60)
 def yf_last_two(ticker):
     try:
@@ -342,7 +544,6 @@ def yf_last_two(ticker):
         return {"price": price, "prev": prev, "diff": diff, "pct": pct}
     except Exception:
         return None
-
 
 @st.cache_data(ttl=300)
 def get_fx_card_data():
@@ -359,17 +560,17 @@ def get_fx_card_data():
             out[name] = row
     return out
 
-
 @st.cache_data(ttl=300)
 def get_brent():
     return yf_last_two("BZ=F")
-
 
 @st.cache_data(ttl=180)
 def get_index(ticker):
     return yf_last_two(ticker)
 
-
+# -----------------------------
+# BASE RATE
+# -----------------------------
 @st.cache_data(ttl=3600)
 def get_base_rate():
     urls = [
@@ -396,7 +597,9 @@ def get_base_rate():
             continue
     return {"ok": False, "message": "기준금리 파싱 실패"}
 
-
+# -----------------------------
+# GOLD
+# -----------------------------
 @st.cache_data(ttl=1800)
 def get_gold_kr():
     buy = None
@@ -443,7 +646,9 @@ def get_gold_kr():
 
     return {"ok": False, "message": "공개 금시세 페이지 구조상 파싱 실패"}
 
-
+# -----------------------------
+# OPINET
+# -----------------------------
 @st.cache_data(ttl=600)
 def get_opinet():
     key = ""
@@ -494,36 +699,17 @@ def get_opinet():
 
     return {"ok": False, "message": f"오피넷 응답에 유가 데이터가 없습니다. ({last_text[:120]})"}
 
-
+# -----------------------------
+# KOREA MARKET SUMMARY
+# -----------------------------
 @st.cache_data(ttl=900)
-def get_investor_deposit():
-    urls = [
-        "https://freesis.kofia.or.kr/",
-        "https://www.kofia.or.kr/",
-    ]
-    for url in urls:
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=10)
-            if not r.ok:
-                continue
-            text = re.sub(r"\\s+", " ", r.text)
-            m = re.search(r"투자자예탁금[^0-9]{0,50}([0-9,]{5,})", text)
-            if m:
-                val = int(m.group(1).replace(",", ""))
-                return {"ok": True, "value_million": val}
-        except Exception:
-            continue
-    return {"ok": False, "value_million": None}
-
-
-@st.cache_data(ttl=900)
-def get_hankyung_market_summary():
-    def parse_market(url):
+def get_korea_market_summary():
+    def parse_page(url):
         out = {
-            "trading_value_million": None,
+            "date": None,
+            "trading_value_억원": None,
             "foreign_억원": None,
             "inst_억원": None,
-            "date": None,
         }
         try:
             r = requests.get(url, headers=HEADERS, timeout=10)
@@ -531,42 +717,102 @@ def get_hankyung_market_summary():
                 return out
             text = re.sub(r"\\s+", " ", r.text)
 
-            m_tv = re.search(r"거래대금\\(백만\\)\\s*([0-9,]+)", text)
-            if m_tv:
-                out["trading_value_million"] = int(m_tv.group(1).replace(",", ""))
+            date_patterns = [
+                r"(20[0-9]{2}\\.[0-9]{2}\\.[0-9]{2})",
+                r"(20[0-9]{2}-[0-9]{2}-[0-9]{2})",
+            ]
+            for p in date_patterns:
+                m = re.search(p, text)
+                if m:
+                    out["date"] = m.group(1)
+                    break
 
-            m_for = re.search(r"외국인\\s*(-?[0-9,]+)억원", text)
-            if m_for:
-                out["foreign_억원"] = int(m_for.group(1).replace(",", ""))
+            tv_patterns = [
+                r"거래대금\\s*([0-9,]+)\\s*억원",
+                r"거래대금[^0-9]{0,20}([0-9,]+)",
+            ]
+            for p in tv_patterns:
+                m = re.search(p, text)
+                if m:
+                    try:
+                        out["trading_value_억원"] = int(m.group(1).replace(",", ""))
+                        break
+                    except Exception:
+                        pass
 
-            m_inst = re.search(r"기관\\s*(-?[0-9,]+)억원", text)
-            if m_inst:
-                out["inst_억원"] = int(m_inst.group(1).replace(",", ""))
+            foreign_patterns = [
+                r"외국인\\s*(-?[0-9,]+)\\s*억원",
+                r"외국인[^-0-9]{0,20}(-?[0-9,]+)",
+            ]
+            for p in foreign_patterns:
+                m = re.search(p, text)
+                if m:
+                    try:
+                        out["foreign_억원"] = int(m.group(1).replace(",", ""))
+                        break
+                    except Exception:
+                        pass
 
-            m_date = re.search(r"(20[0-9]{2}\\.[0-9]{2}\\.[0-9]{2})", text)
-            if m_date:
-                out["date"] = m_date.group(1)
+            inst_patterns = [
+                r"기관\\s*(-?[0-9,]+)\\s*억원",
+                r"기관[^-0-9]{0,20}(-?[0-9,]+)",
+            ]
+            for p in inst_patterns:
+                m = re.search(p, text)
+                if m:
+                    try:
+                        out["inst_억원"] = int(m.group(1).replace(",", ""))
+                        break
+                    except Exception:
+                        pass
 
         except Exception:
             pass
         return out
 
-    kospi = parse_market("https://markets.hankyung.com/indices/kospi")
-    kosdaq = parse_market("https://markets.hankyung.com/indices/kosdaq")
-    deposit = get_investor_deposit()
+    kospi = parse_page("https://finance.naver.com/sise/sise_index.naver?code=KOSPI")
+    kosdaq = parse_page("https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ")
+
+    if kospi["trading_value_억원"] is None:
+        h_kospi = parse_page("https://markets.hankyung.com/indices/kospi")
+        for k, v in h_kospi.items():
+            if kospi.get(k) is None and v is not None:
+                kospi[k] = v
+
+    if kosdaq["trading_value_억원"] is None:
+        h_kosdaq = parse_page("https://markets.hankyung.com/indices/kosdaq")
+        for k, v in h_kosdaq.items():
+            if kosdaq.get(k) is None and v is not None:
+                kosdaq[k] = v
+
+    deposit_million = None
+    for url in ["https://freesis.kofia.or.kr/", "https://www.kofia.or.kr/"]:
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=10)
+            if not r.ok:
+                continue
+            text = re.sub(r"\\s+", " ", r.text)
+            m = re.search(r"투자자예탁금[^0-9]{0,50}([0-9,]{5,})", text)
+            if m:
+                deposit_million = int(m.group(1).replace(",", ""))
+                break
+        except Exception:
+            continue
 
     return {
         "date": kospi.get("date") or kosdaq.get("date"),
-        "trading_value_kospi": (kospi["trading_value_million"] * 1000000) if kospi.get("trading_value_million") else None,
-        "trading_value_kosdaq": (kosdaq["trading_value_million"] * 1000000) if kosdaq.get("trading_value_million") else None,
-        "foreign_net_kospi": kospi.get("foreign_억원"),
-        "foreign_net_kosdaq": kosdaq.get("foreign_억원"),
-        "inst_net_kospi": kospi.get("inst_억원"),
-        "inst_net_kosdaq": kosdaq.get("inst_억원"),
-        "deposit_million": deposit.get("value_million") if deposit.get("ok") else None,
+        "trading_value_kospi_억원": kospi.get("trading_value_억원"),
+        "trading_value_kosdaq_억원": kosdaq.get("trading_value_억원"),
+        "foreign_net_kospi_억원": kospi.get("foreign_억원"),
+        "foreign_net_kosdaq_억원": kosdaq.get("foreign_억원"),
+        "inst_net_kospi_억원": kospi.get("inst_억원"),
+        "inst_net_kosdaq_억원": kosdaq.get("inst_억원"),
+        "deposit_million": deposit_million,
     }
 
-
+# -----------------------------
+# TABLE / NEWS / SEARCH
+# -----------------------------
 def make_stock_table(items):
     rows = []
     for name, ticker in items:
@@ -588,7 +834,6 @@ def make_stock_table(items):
                 "등락률(%)": "-",
             })
     return pd.DataFrame(rows)
-
 
 @st.cache_data(ttl=900)
 def get_news():
@@ -619,7 +864,6 @@ def get_news():
             out.append(item)
     return out[:10]
 
-
 @st.cache_data(ttl=900)
 def search_symbol(query):
     q = query.strip()
@@ -639,7 +883,9 @@ def search_symbol(query):
             return ticker, row
     return None
 
-
+# -----------------------------
+# DATA LOAD
+# -----------------------------
 kst = datetime.now(pytz.timezone("Asia/Seoul"))
 est = datetime.now(pytz.timezone("US/Eastern"))
 
@@ -650,8 +896,11 @@ base_rate = get_base_rate()
 brent = get_brent()
 opinet = get_opinet()
 fx = get_fx_card_data()
-market_over = get_hankyung_market_summary()
+market_over = get_korea_market_summary()
 
+# -----------------------------
+# HEADER
+# -----------------------------
 st.markdown('<div class="main-title">경제 대시보드 <span class="en">(Economy Dash board)</span></div>', unsafe_allow_html=True)
 
 t1, t2 = st.columns(2)
@@ -662,6 +911,9 @@ with t2:
 
 st.caption("자동 새로고침: 60초")
 
+# -----------------------------
+# METRIC CARDS
+# -----------------------------
 st.markdown('<div class="section-title">오늘의 핵심 지표</div>', unsafe_allow_html=True)
 
 r1 = st.columns(4)
@@ -743,15 +995,18 @@ with r2[3]:
                     "오피넷",
                     big=False)
 
+# -----------------------------
+# MARKET OVERVIEW
+# -----------------------------
 st.markdown('<div class="section-title">오늘의 한국증시</div>', unsafe_allow_html=True)
 
 market_rows = {
     "종합주가지수": f"코스피 {fmt_num(kospi['price']) if kospi else '-'} / 코스닥 {fmt_num(kosdaq['price']) if kosdaq else '-'}",
     "기준일": market_over.get("date") or "-",
-    "거래대금": f"코스피 {fmt_billion_krw((market_over.get('trading_value_kospi') or 0)/100000000)} / 코스닥 {fmt_billion_krw((market_over.get('trading_value_kosdaq') or 0)/100000000)}",
+    "거래대금": f"코스피 {fmt_billion_krw(market_over.get('trading_value_kospi_억원'))} / 코스닥 {fmt_billion_krw(market_over.get('trading_value_kosdaq_억원'))}",
     "고객예탁금": fmt_hundred_million_from_million(market_over.get('deposit_million')),
-    "외국인 동향": f"코스피 {fmt_billion_krw(market_over.get('foreign_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('foreign_net_kosdaq'))}",
-    "기관 동향": f"코스피 {fmt_billion_krw(market_over.get('inst_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('inst_net_kosdaq'))}",
+    "외국인 동향": f"코스피 {fmt_billion_krw(market_over.get('foreign_net_kospi_억원'))} / 코스닥 {fmt_billion_krw(market_over.get('foreign_net_kosdaq_억원'))}",
+    "기관 동향": f"코스피 {fmt_billion_krw(market_over.get('inst_net_kospi_억원'))} / 코스닥 {fmt_billion_krw(market_over.get('inst_net_kosdaq_억원'))}",
 }
 
 rows = ['<table class="market-mini"><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>']
@@ -760,6 +1015,9 @@ for k, v in market_rows.items():
 rows.append("</tbody></table>")
 st.markdown("".join(rows), unsafe_allow_html=True)
 
+# -----------------------------
+# STOCK LISTS
+# -----------------------------
 KOSPI_50 = [
     ("삼성전자","005930.KS"),("SK하이닉스","000660.KS"),("LG에너지솔루션","373220.KS"),("삼성바이오로직스","207940.KS"),
     ("현대차","005380.KS"),("기아","000270.KS"),("셀트리온","068270.KS"),("KB금융","105560.KS"),
@@ -850,8 +1108,8 @@ with right:
     <div class="link-list">
       <a href="https://ecos.bok.or.kr/" target="_blank">한국은행 ECOS</a>
       <a href="https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643" target="_blank">한국은행 기준금리 추이</a>
-      <a href="https://markets.hankyung.com/indices/kospi" target="_blank">한경 코스피 시장종합</a>
-      <a href="https://markets.hankyung.com/indices/kosdaq" target="_blank">한경 코스닥 시장종합</a>
+      <a href="https://finance.naver.com/sise/sise_index.naver?code=KOSPI" target="_blank">네이버 코스피</a>
+      <a href="https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ" target="_blank">네이버 코스닥</a>
       <a href="https://freesis.kofia.or.kr/" target="_blank">금융투자협회 FreeSIS</a>
       <a href="https://www.opinet.co.kr/" target="_blank">오피넷</a>
       <a href="https://www.kumsise.com/main/index.php" target="_blank">금시세닷컴</a>
@@ -862,4 +1120,93 @@ with right:
     </div>
     ''', unsafe_allow_html=True)
 
-st.markdown('<div class="footer">© miyawa 제작</div>', unsafe_allow_html=True)
+# -----------------------------
+# SEO CONTENT
+# -----------------------------
+st.markdown("""
+<div class="seo-box">
+  <h2>경제 대시보드 활용 가이드</h2>
+
+  <h3>1. 경제 대시보드 활용방법</h3>
+  <p>
+    경제 대시보드는 코스피, 코스닥, 한국 증시 현황, 원화환율, 국제유가, 금시세, 기준금리,
+    ETF 시세와 주요 경제뉴스를 한 화면에서 확인할 수 있도록 구성한 실시간 경제 정보 페이지입니다.
+    투자자, 자영업자, 온라인 쇼핑몰 운영자, 마케팅 담당자, 소상공인처럼
+    경제 흐름을 빠르게 파악해야 하는 사용자에게 특히 유용합니다.
+  </p>
+  <p>
+    하루 시장 분위기를 파악할 때는 코스피와 코스닥 지수만 보기보다
+    환율, 국제유가, 국내 유가, 금시세, 기준금리를 함께 보아야
+    시장 심리와 자금 흐름, 물가 부담, 소비 여건 변화를 입체적으로 이해할 수 있습니다.
+  </p>
+
+  <h3>2. 사용법</h3>
+  <p>
+    화면 상단 오늘의 핵심 지표에서는 코스피, 코스닥, 금시세, 한국 기준금리, 원화환율,
+    국제유가와 국내 유가를 빠르게 확인할 수 있습니다. 각 카드에는 현재 수치와 전일 대비 증감 정보가 함께 표시되어
+    하루 흐름을 즉시 파악할 수 있습니다. 오늘의 한국증시 표에서는 시장 전체 분위기와 거래대금,
+    고객예탁금, 외국인 동향, 기관 동향 등을 요약해서 볼 수 있습니다.
+  </p>
+  <p>
+    중간 영역에서는 코스피 주요 50개 종목과 코스닥 주요 50개 종목을 10개씩 확인할 수 있고,
+    더보기 버튼으로 확장할 수 있습니다. ETF 주요 10개 종목 영역은 대표 지수형 ETF와
+    미국 지수형 ETF, 금 ETF, 리츠 ETF 흐름을 참고하는 데 적합합니다.
+    관심있는 종목 검색 기능을 이용하면 종목코드 또는 티커 입력만으로 원하는 종목의 현재가와 등락률을 빠르게 확인할 수 있습니다.
+  </p>
+
+  <h3>3. 각 지수별 의미</h3>
+  <p>
+    코스피는 한국 유가증권시장 전체 흐름을 보여주는 대표 지수로,
+    삼성전자, SK하이닉스, 현대차 등 대형주의 영향을 크게 받습니다.
+    코스닥은 성장주와 기술주, 바이오주, 중소형주 중심의 시장 흐름을 보여주는 지수로
+    위험자산 선호 심리를 파악하는 데 유용합니다.
+  </p>
+  <p>
+    원화환율은 달러, 위안, 엔, 유로 대비 원화 가치의 변화를 보여주며,
+    수입 원가와 해외 결제 비용, 여행 소비, 해외 투자 심리에 영향을 줄 수 있습니다.
+    브렌트유는 글로벌 에너지 가격 흐름을 대표하는 지표이며,
+    국내 휘발유와 경유 가격에도 영향을 주는 핵심 변수입니다.
+    금시세는 안전자산 선호 흐름을 이해하는 데 참고할 수 있고,
+    기준금리는 대출금리와 예금금리, 소비와 투자, 부동산과 주식 시장에 큰 영향을 주는 지표입니다.
+  </p>
+
+  <h3>4. 투자 참고 포인트</h3>
+  <p>
+    투자 판단은 단일 지표보다 여러 지표를 함께 보는 것이 중요합니다.
+    예를 들어 코스피가 상승하더라도 외국인과 기관이 동시에 순매도 중인지,
+    거래대금이 충분히 동반되고 있는지, 환율이 급등하고 있지는 않은지 함께 체크해야 합니다.
+  </p>
+  <p>
+    원달러 환율 상승은 수입물가 부담과 외국인 수급 변화 가능성을 시사할 수 있고,
+    국제유가 상승은 운송비와 생산비 상승으로 이어질 수 있습니다.
+    기준금리 변화는 소비와 투자, 부채 부담에 직접적인 영향을 줄 수 있으므로
+    자산배분 관점에서도 중요한 체크 포인트가 됩니다.
+  </p>
+  <p>
+    장기 투자자는 하루 수치보다 추세를 보는 것이 중요하고,
+    단기 투자자는 전일 대비 변화폭과 거래대금, 외국인·기관 수급의 방향성을 함께 보는 것이 좋습니다.
+    자영업자나 쇼핑몰 운영자라면 환율과 유가, 금리, 소비 관련 지표를 함께 확인해
+    마케팅 예산, 수입 원가, 재고 전략, 가격 정책을 점검하는 데 활용할 수 있습니다.
+  </p>
+
+  <h3>자주 묻는 질문</h3>
+  <p>
+    경제 대시보드는 무엇을 보여주나요? 이 페이지는 코스피, 코스닥, 환율, 금시세, 국제유가,
+    국내 유가, 기준금리, ETF 시세, 경제뉴스를 한 번에 보여주는 경제 정보 페이지입니다.
+  </p>
+  <p>
+    코스피와 코스닥의 차이는 무엇인가요? 코스피는 대형주 중심의 대표 지수이고,
+    코스닥은 성장주와 기술주 중심의 시장 흐름을 보여주는 지수입니다.
+  </p>
+  <p>
+    이 페이지는 구글, 네이버, 다음 등 검색엔진에서 경제 대시보드, 한국 증시 현황,
+    코스피 코스닥 실시간, 오늘의 환율, 오늘의 금시세, 투자 참고 지표 등의 검색 의도에 맞는
+    정보를 제공하기 위해 구성되었습니다.
+  </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown(
+    '<div class="footer">2026 MISHARP COMPANY by MIYAWA<br>무단 게재, 복재, 전제를 금합니다.</div>',
+    unsafe_allow_html=True
+)
