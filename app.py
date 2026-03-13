@@ -595,29 +595,49 @@ def get_market_overview():
         "deposit_million": None,
     }
 
-    # 코스피 시장 전체 거래대금 / 외국인 / 기관
+    # 1. 거래대금: 종목별 OHLCV에서 합산
     try:
-        v_kospi = krx.get_market_trading_value_by_date(ds, ds, "KOSPI")
-        if v_kospi is not None and not v_kospi.empty:
-            last = v_kospi.iloc[-1]
-            result["trading_value_kospi"] = float(last.get("전체")) if pd.notna(last.get("전체")) else None
-            result["foreign_net_kospi"] = float(last.get("외국인합계")) if pd.notna(last.get("외국인합계")) else None
-            result["inst_net_kospi"] = float(last.get("기관합계")) if pd.notna(last.get("기관합계")) else None
+        df_kospi = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
+        if df_kospi is not None and not df_kospi.empty and "거래대금" in df_kospi.columns:
+            result["trading_value_kospi"] = float(df_kospi["거래대금"].fillna(0).sum())
     except Exception:
         pass
 
-    # 코스닥 시장 전체 거래대금 / 외국인 / 기관
     try:
-        v_kosdaq = krx.get_market_trading_value_by_date(ds, ds, "KOSDAQ")
-        if v_kosdaq is not None and not v_kosdaq.empty:
-            last = v_kosdaq.iloc[-1]
-            result["trading_value_kosdaq"] = float(last.get("전체")) if pd.notna(last.get("전체")) else None
-            result["foreign_net_kosdaq"] = float(last.get("외국인합계")) if pd.notna(last.get("외국인합계")) else None
-            result["inst_net_kosdaq"] = float(last.get("기관합계")) if pd.notna(last.get("기관합계")) else None
+        df_kosdaq = krx.get_market_ohlcv_by_ticker(ds, market="KOSDAQ")
+        if df_kosdaq is not None and not df_kosdaq.empty and "거래대금" in df_kosdaq.columns:
+            result["trading_value_kosdaq"] = float(df_kosdaq["거래대금"].fillna(0).sum())
     except Exception:
         pass
 
-    # 고객예탁금
+    # 2. 외국인/기관 순매수: 투자자별 거래대금
+    def pick_investor_net(df, candidates):
+        if df is None or df.empty:
+            return None
+        for name in candidates:
+            if name in df.index:
+                row = df.loc[name]
+                if isinstance(row, pd.Series):
+                    for col in ["순매수", "순매수금액", "순매수거래대금"]:
+                        if col in row.index and pd.notna(row[col]):
+                            return float(row[col])
+        return None
+
+    try:
+        inv_kospi = krx.get_market_trading_value_by_investor(ds, ds, "KOSPI")
+        result["foreign_net_kospi"] = pick_investor_net(inv_kospi, ["외국인합계", "외국인", "기타외국인"])
+        result["inst_net_kospi"] = pick_investor_net(inv_kospi, ["기관합계", "기관", "금융투자"])
+    except Exception:
+        pass
+
+    try:
+        inv_kosdaq = krx.get_market_trading_value_by_investor(ds, ds, "KOSDAQ")
+        result["foreign_net_kosdaq"] = pick_investor_net(inv_kosdaq, ["외국인합계", "외국인", "기타외국인"])
+        result["inst_net_kosdaq"] = pick_investor_net(inv_kosdaq, ["기관합계", "기관", "금융투자"])
+    except Exception:
+        pass
+
+    # 3. 고객예탁금
     dep = get_investor_deposit()
     if dep.get("ok"):
         result["deposit_million"] = dep.get("value_million")
