@@ -50,6 +50,7 @@ SEO_KEYWORDS = (
     "오늘의 환율, 오늘의 금시세, 국제유가, 한국 기준금리, ETF 시세, 경제뉴스"
 )
 
+
 def inject_seo_meta():
     json_ld = {
         "@context": "https://schema.org",
@@ -174,6 +175,7 @@ def inject_seo_meta():
     </script>
     """
     components.html(seo_html, height=0, width=0)
+
 
 inject_seo_meta()
 
@@ -475,6 +477,7 @@ def fmt_num(v, digits=2):
         pass
     return f"{v:,.{digits}f}"
 
+
 def fmt_int(v):
     if v is None:
         return "-"
@@ -485,6 +488,7 @@ def fmt_int(v):
         pass
     return f"{int(round(v)):,}"
 
+
 def fmt_billion_krw(v):
     if v is None:
         return "-"
@@ -494,6 +498,7 @@ def fmt_billion_krw(v):
     except Exception:
         return "-"
 
+
 def fmt_hundred_million_from_million(v):
     if v is None:
         return "-"
@@ -501,6 +506,7 @@ def fmt_hundred_million_from_million(v):
         return f"{v/100:,.0f}억원"
     except Exception:
         return "-"
+
 
 def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     if diff is None:
@@ -512,6 +518,7 @@ def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     else:
         body = f"{arrow} {diff:+,.2f}{unit} ({pct:+.2f}%)"
     return f'{prefix} <span class="{cls}">{body}</span>'
+
 
 def render_card(title, value, sub_html, source=None, note=None, big=True):
     value_class = "value big" if big else "value"
@@ -545,6 +552,7 @@ def yf_last_two(ticker):
     except Exception:
         return None
 
+
 @st.cache_data(ttl=300)
 def get_fx_card_data():
     mapping = {
@@ -560,9 +568,11 @@ def get_fx_card_data():
             out[name] = row
     return out
 
+
 @st.cache_data(ttl=300)
 def get_brent():
     return yf_last_two("BZ=F")
+
 
 @st.cache_data(ttl=180)
 def get_index(ticker):
@@ -582,10 +592,10 @@ def get_base_rate():
             r = requests.get(url, headers=HEADERS, timeout=10)
             if not r.ok:
                 continue
-            text = re.sub(r"\\s+", " ", r.text)
+            text = re.sub(r"\s+", " ", r.text)
             patterns = [
-                r"기준금리[^0-9]{0,30}([0-9]+\\.[0-9]+)",
-                r"한국은행기준금리[^0-9]{0,30}([0-9]+\\.[0-9]+)",
+                r"기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)",
+                r"한국은행기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)",
             ]
             for p in patterns:
                 m = re.search(p, text)
@@ -609,8 +619,8 @@ def get_gold_kr():
     try:
         r = requests.get("https://www.kumsise.com/main/index.php", headers=HEADERS, timeout=10)
         if r.ok:
-            text = re.sub(r"\\s+", " ", r.text)
-            m = re.search(r"순금\\s*([0-9,]{5,})원.*?([0-9,]{5,})원", text, re.IGNORECASE)
+            text = re.sub(r"\s+", " ", r.text)
+            m = re.search(r"순금\s*([0-9,]{5,})원.*?([0-9,]{5,})원", text, re.IGNORECASE)
             if m:
                 first = int(m.group(1).replace(",", ""))
                 second = int(m.group(2).replace(",", ""))
@@ -715,10 +725,10 @@ def get_korea_market_summary():
             r = requests.get(url, headers=HEADERS, timeout=10)
             if not r.ok:
                 return out
-            text = re.sub(r"\\s+", " ", r.text)
+            text = re.sub(r"\s+", " ", r.text)
 
             date_patterns = [
-                r"(20[0-9]{2}\\.[0-9]{2}\\.[0-9]{2})",
+                r"(20[0-9]{2}\.[0-9]{2}\.[0-9]{2})",
                 r"(20[0-9]{2}-[0-9]{2}-[0-9]{2})",
             ]
             for p in date_patterns:
@@ -728,7 +738,7 @@ def get_korea_market_summary():
                     break
 
             tv_patterns = [
-                r"거래대금\\s*([0-9,]+)\\s*억원",
+                r"거래대금\s*([0-9,]+)\s*억원",
                 r"거래대금[^0-9]{0,20}([0-9,]+)",
             ]
             for p in tv_patterns:
@@ -741,7 +751,7 @@ def get_korea_market_summary():
                         pass
 
             foreign_patterns = [
-                r"외국인\\s*(-?[0-9,]+)\\s*억원",
+                r"외국인\s*(-?[0-9,]+)\s*억원",
                 r"외국인[^-0-9]{0,20}(-?[0-9,]+)",
             ]
             for p in foreign_patterns:
@@ -754,7 +764,7 @@ def get_korea_market_summary():
                         pass
 
             inst_patterns = [
-                r"기관\\s*(-?[0-9,]+)\\s*억원",
+                r"기관\s*(-?[0-9,]+)\s*억원",
                 r"기관[^-0-9]{0,20}(-?[0-9,]+)",
             ]
             for p in inst_patterns:
@@ -765,7 +775,6 @@ def get_korea_market_summary():
                         break
                     except Exception:
                         pass
-
         except Exception:
             pass
         return out
@@ -791,7 +800,7 @@ def get_korea_market_summary():
             r = requests.get(url, headers=HEADERS, timeout=10)
             if not r.ok:
                 continue
-            text = re.sub(r"\\s+", " ", r.text)
+            text = re.sub(r"\s+", " ", r.text)
             m = re.search(r"투자자예탁금[^0-9]{0,50}([0-9,]{5,})", text)
             if m:
                 deposit_million = int(m.group(1).replace(",", ""))
@@ -835,6 +844,7 @@ def make_stock_table(items):
             })
     return pd.DataFrame(rows)
 
+
 @st.cache_data(ttl=900)
 def get_news():
     feeds = [
@@ -864,23 +874,127 @@ def get_news():
             out.append(item)
     return out[:10]
 
+
+# -----------------------------
+# STOCK UNIVERSE
+# -----------------------------
+KOSPI_50 = [
+    ("삼성전자", "005930.KS"), ("SK하이닉스", "000660.KS"), ("LG에너지솔루션", "373220.KS"), ("삼성바이오로직스", "207940.KS"),
+    ("현대차", "005380.KS"), ("기아", "000270.KS"), ("셀트리온", "068270.KS"), ("KB금융", "105560.KS"),
+    ("NAVER", "035420.KS"), ("한화에어로스페이스", "012450.KS"), ("POSCO홀딩스", "005490.KS"), ("삼성SDI", "006400.KS"),
+    ("현대모비스", "012330.KS"), ("신한지주", "055550.KS"), ("메리츠금융지주", "138040.KS"), ("하나금융지주", "086790.KS"),
+    ("LG화학", "051910.KS"), ("삼성물산", "028260.KS"), ("HMM", "011200.KS"), ("카카오", "035720.KS"),
+    ("HD현대중공업", "329180.KS"), ("삼성생명", "032830.KS"), ("KT&G", "033780.KS"), ("두산에너빌리티", "034020.KS"),
+    ("한국전력", "015760.KS"), ("우리금융지주", "316140.KS"), ("대한항공", "003490.KS"), ("포스코퓨처엠", "003670.KS"),
+    ("크래프톤", "259960.KS"), ("삼성전기", "009150.KS"), ("기업은행", "024110.KS"), ("SK이노베이션", "096770.KS"),
+    ("HD한국조선해양", "009540.KS"), ("삼성화재", "000810.KS"), ("LG", "003550.KS"), ("아모레퍼시픽", "090430.KS"),
+    ("S-Oil", "010950.KS"), ("고려아연", "010130.KS"), ("오리온", "271560.KS"), ("유한양행", "000100.KS"),
+    ("롯데케미칼", "011170.KS"), ("한미반도체", "042700.KS"), ("삼성에스디에스", "018260.KS"), ("LS ELECTRIC", "010120.KS"),
+    ("SK텔레콤", "017670.KS"), ("CJ제일제당", "097950.KS"), ("LG전자", "066570.KS"), ("현대글로비스", "086280.KS"),
+    ("강원랜드", "035250.KS"), ("한진칼", "180640.KS")
+]
+
+KOSDAQ_50 = [
+    ("에코프로비엠", "247540.KQ"), ("에코프로", "086520.KQ"), ("HLB", "028300.KQ"), ("알테오젠", "196170.KQ"),
+    ("레인보우로보틱스", "277810.KQ"), ("리가켐바이오", "141080.KQ"), ("휴젤", "145020.KQ"), ("클래시스", "214150.KQ"),
+    ("JYP Ent.", "035900.KQ"), ("파마리서치", "214450.KQ"), ("펄어비스", "263750.KQ"), ("에스엠", "041510.KQ"),
+    ("셀트리온제약", "068760.KQ"), ("삼천당제약", "000250.KQ"), ("HPSP", "403870.KQ"), ("실리콘투", "257720.KQ"),
+    ("주성엔지니어링", "036930.KQ"), ("원익IPS", "240810.KQ"), ("이오테크닉스", "039030.KQ"), ("리노공업", "058470.KQ"),
+    ("SOOP", "067160.KQ"), ("ISC", "095340.KQ"), ("덕산네오룩스", "213420.KQ"), ("메디톡스", "086900.KQ"),
+    ("동진쎄미켐", "005290.KQ"), ("엔켐", "348370.KQ"), ("와이지엔터테인먼트", "122870.KQ"), ("카페24", "042000.KQ"),
+    ("에스티팜", "237690.KQ"), ("보로노이", "310210.KQ"), ("젬백스", "082270.KQ"), ("네이처셀", "007390.KQ"),
+    ("큐렉소", "060280.KQ"), ("코스메카코리아", "241710.KQ"), ("브이티", "018290.KQ"), ("차바이오텍", "085660.KQ"),
+    ("씨젠", "096530.KQ"), ("원텍", "336570.KQ"), ("대주전자재료", "078600.KQ"), ("티씨케이", "064760.KQ"),
+    ("에스앤에스텍", "101490.KQ"), ("파크시스템스", "140860.KQ"), ("천보", "278280.KQ"), ("컴투스", "078340.KQ"),
+    ("고영", "098460.KQ"), ("제이시스메디칼", "287410.KQ"), ("디어유", "376300.KQ"), ("오스템임플란트", "048260.KQ"),
+    ("루닛", "328130.KQ"), ("셀바스AI", "108860.KQ")
+]
+
+ETF_10 = [
+    ("KODEX 200", "069500.KS"), ("TIGER 200", "102110.KS"), ("KODEX 코스닥150", "229200.KS"), ("TIGER 미국S&P500", "360750.KS"),
+    ("KODEX 미국S&P500TR", "379800.KS"), ("TIGER 미국나스닥100", "133690.KS"), ("KODEX 2차전지산업", "305720.KS"),
+    ("KODEX 은행", "091170.KS"), ("KODEX 골드선물(H)", "132030.KS"), ("TIGER 리츠부동산인프라", "329200.KS")
+]
+
+# -----------------------------
+# SEARCH MAP
+# -----------------------------
+ALL_SEARCH_ITEMS = KOSPI_50 + KOSDAQ_50 + ETF_10
+
+NAME_TO_TICKER = {}
+for name, ticker in ALL_SEARCH_ITEMS:
+    key1 = name.strip().lower()
+    key2 = name.replace(" ", "").strip().lower()
+    NAME_TO_TICKER[key1] = ticker
+    NAME_TO_TICKER[key2] = ticker
+
+EXTRA_NAME_MAP = {
+    "한화시스템": "272210.KS",
+    "한화에어로스페이스": "012450.KS",
+    "삼성전자": "005930.KS",
+    "sk하이닉스": "000660.KS",
+    "에코프로비엠": "247540.KQ",
+    "에코프로": "086520.KQ",
+    "hlb": "028300.KQ",
+    "jyp": "035900.KQ",
+    "jypent": "035900.KQ",
+    "jypent.": "035900.KQ",
+    "naver": "035420.KS",
+    "카카오": "035720.KS",
+}
+for k, v in EXTRA_NAME_MAP.items():
+    NAME_TO_TICKER[k.lower()] = v
+    NAME_TO_TICKER[k.replace(" ", "").lower()] = v
+
+
 @st.cache_data(ttl=900)
 def search_symbol(query):
     q = query.strip()
     if not q:
         return None
+
+    q_lower = q.lower().strip()
+    q_compact = q.replace(" ", "").lower().strip()
+
+    # 1. 한글/영문 종목명 검색
+    if q_lower in NAME_TO_TICKER:
+        ticker = NAME_TO_TICKER[q_lower]
+        row = yf_last_two(ticker)
+        if row:
+            return q, ticker, row
+
+    if q_compact in NAME_TO_TICKER:
+        ticker = NAME_TO_TICKER[q_compact]
+        row = yf_last_two(ticker)
+        if row:
+            return q, ticker, row
+
+    # 2. 숫자 코드 검색
     candidates = []
     if q.isdigit():
-        candidates += [f"{q}.KS", f"{q}.KQ"]
+        if len(q) == 6:
+            candidates += [f"{q}.KS", f"{q}.KQ"]
+        else:
+            candidates += [q]
+
+    # 3. 티커 직접 입력
     if "." in q:
         candidates.append(q.upper())
     else:
         candidates += [q.upper(), f"{q.upper()}.KS", f"{q.upper()}.KQ"]
 
-    for ticker in candidates:
+    seen = set()
+    uniq_candidates = []
+    for c in candidates:
+        if c not in seen:
+            uniq_candidates.append(c)
+            seen.add(c)
+
+    for ticker in uniq_candidates:
         row = yf_last_two(ticker)
         if row:
-            return ticker, row
+            return q, ticker, row
+
     return None
 
 # -----------------------------
@@ -918,45 +1032,58 @@ st.markdown('<div class="section-title">오늘의 핵심 지표</div>', unsafe_a
 
 r1 = st.columns(4)
 with r1[0]:
-    render_card("오늘의 코스피",
-                fmt_num(kospi["price"]) if kospi else "-",
-                delta_html(kospi["diff"], kospi["pct"]) if kospi else "전일 대비 정보 없음",
-                "Yahoo Finance")
+    render_card(
+        "오늘의 코스피",
+        fmt_num(kospi["price"]) if kospi else "-",
+        delta_html(kospi["diff"], kospi["pct"]) if kospi else "전일 대비 정보 없음",
+        "Yahoo Finance"
+    )
 with r1[1]:
-    render_card("오늘의 코스닥",
-                fmt_num(kosdaq["price"]) if kosdaq else "-",
-                delta_html(kosdaq["diff"], kosdaq["pct"]) if kosdaq else "전일 대비 정보 없음",
-                "Yahoo Finance")
+    render_card(
+        "오늘의 코스닥",
+        fmt_num(kosdaq["price"]) if kosdaq else "-",
+        delta_html(kosdaq["diff"], kosdaq["pct"]) if kosdaq else "전일 대비 정보 없음",
+        "Yahoo Finance"
+    )
 with r1[2]:
-    render_card("한국 금시세 1돈 · 살때",
-                f"₩{fmt_int(gold.get('buy'))}" if gold.get("buy") else "-",
-                "전일 대비 정보 없음",
-                "공개 금시세 페이지 / fallback 계산" if gold.get("ok") else None,
-                gold.get("message"),
-                big=True)
+    render_card(
+        "한국 금시세 1돈 · 살때",
+        f"₩{fmt_int(gold.get('buy'))}" if gold.get("buy") else "-",
+        "전일 대비 정보 없음",
+        "공개 금시세 페이지 / fallback 계산" if gold.get("ok") else None,
+        gold.get("message"),
+        big=True
+    )
 with r1[3]:
-    render_card("한국 금시세 1돈 · 팔때",
-                f"₩{fmt_int(gold.get('sell'))}" if gold.get("sell") else "-",
-                "전일 대비 정보 없음",
-                "공개 금시세 페이지 / fallback 계산" if gold.get("ok") else None,
-                gold.get("message"),
-                big=True)
+    render_card(
+        "한국 금시세 1돈 · 팔때",
+        f"₩{fmt_int(gold.get('sell'))}" if gold.get("sell") else "-",
+        "전일 대비 정보 없음",
+        "공개 금시세 페이지 / fallback 계산" if gold.get("ok") else None,
+        gold.get("message"),
+        big=True
+    )
 
 r2 = st.columns(4)
 with r2[0]:
     if base_rate.get("ok"):
-        render_card("한국 기준금리",
-                    f"{base_rate['value']:.2f}%",
-                    base_rate["message"],
-                    "한국은행",
-                    big=True)
+        render_card(
+            "한국 기준금리",
+            f"{base_rate['value']:.2f}%",
+            base_rate["message"],
+            "한국은행",
+            big=True
+        )
     else:
-        render_card("한국 기준금리",
-                    "-",
-                    base_rate.get("message", "직전 변경 대비 정보 없음"),
-                    None,
-                    None,
-                    big=True)
+        render_card(
+            "한국 기준금리",
+            "-",
+            base_rate.get("message", "직전 변경 대비 정보 없음"),
+            None,
+            None,
+            big=True
+        )
+
 with r2[1]:
     if fx:
         parts = []
@@ -964,18 +1091,24 @@ with r2[1]:
             if nm in fx:
                 parts.append(f"{nm} {fmt_num(fx[nm]['price'])}원")
         first = fx.get("달러")
-        render_card("원화환율",
-                    "<br>".join(parts),
-                    delta_html(first["diff"], first["pct"], unit="원", prefix="달러 기준") if first else "달러 기준 정보 없음",
-                    "Yahoo Finance",
-                    big=False)
+        render_card(
+            "원화환율",
+            "<br>".join(parts),
+            delta_html(first["diff"], first["pct"], unit="원", prefix="달러 기준") if first else "달러 기준 정보 없음",
+            "Yahoo Finance",
+            big=False
+        )
     else:
         render_card("원화환율", "-", "환율 데이터 없음", big=False)
+
 with r2[2]:
-    render_card("국제유가 · 브렌트유",
-                f"${fmt_num(brent['price'])} / bbl" if brent else "-",
-                delta_html(brent["diff"], brent["pct"], unit=" 달러") if brent else "전일 대비 정보 없음",
-                "Yahoo Finance")
+    render_card(
+        "국제유가 · 브렌트유",
+        f"${fmt_num(brent['price'])} / bbl" if brent else "-",
+        delta_html(brent["diff"], brent["pct"], unit=" 달러") if brent else "전일 대비 정보 없음",
+        "Yahoo Finance"
+    )
+
 with r2[3]:
     if opinet.get("ok"):
         notes = []
@@ -983,17 +1116,21 @@ with r2[3]:
             notes.append(f"휘발유 {opinet['gas_diff']:+,.0f}원")
         if opinet.get("diesel_diff") is not None:
             notes.append(f"경유 {opinet['diesel_diff']:+,.0f}원")
-        render_card("한국 기준 유가",
-                    f"휘발유 {fmt_num(opinet.get('gas'),0)}원<br>경유 {fmt_num(opinet.get('diesel'),0)}원",
-                    "전일 대비 " + (" · ".join(notes) if notes else "정보 없음"),
-                    "오피넷",
-                    big=False)
+        render_card(
+            "한국 기준 유가",
+            f"휘발유 {fmt_num(opinet.get('gas'),0)}원<br>경유 {fmt_num(opinet.get('diesel'),0)}원",
+            "전일 대비 " + (" · ".join(notes) if notes else "정보 없음"),
+            "오피넷",
+            big=False
+        )
     else:
-        render_card("한국 기준 유가",
-                    "API 키 확인 필요",
-                    opinet.get("message", "오피넷 데이터 없음"),
-                    "오피넷",
-                    big=False)
+        render_card(
+            "한국 기준 유가",
+            "API 키 확인 필요",
+            opinet.get("message", "오피넷 데이터 없음"),
+            "오피넷",
+            big=False
+        )
 
 # -----------------------------
 # MARKET OVERVIEW
@@ -1016,44 +1153,8 @@ rows.append("</tbody></table>")
 st.markdown("".join(rows), unsafe_allow_html=True)
 
 # -----------------------------
-# STOCK LISTS
+# STOCK TABLES
 # -----------------------------
-KOSPI_50 = [
-    ("삼성전자","005930.KS"),("SK하이닉스","000660.KS"),("LG에너지솔루션","373220.KS"),("삼성바이오로직스","207940.KS"),
-    ("현대차","005380.KS"),("기아","000270.KS"),("셀트리온","068270.KS"),("KB금융","105560.KS"),
-    ("NAVER","035420.KS"),("한화에어로스페이스","012450.KS"),("POSCO홀딩스","005490.KS"),("삼성SDI","006400.KS"),
-    ("현대모비스","012330.KS"),("신한지주","055550.KS"),("메리츠금융지주","138040.KS"),("하나금융지주","086790.KS"),
-    ("LG화학","051910.KS"),("삼성물산","028260.KS"),("HMM","011200.KS"),("카카오","035720.KS"),
-    ("HD현대중공업","329180.KS"),("삼성생명","032830.KS"),("KT&G","033780.KS"),("두산에너빌리티","034020.KS"),
-    ("한국전력","015760.KS"),("우리금융지주","316140.KS"),("대한항공","003490.KS"),("포스코퓨처엠","003670.KS"),
-    ("크래프톤","259960.KS"),("삼성전기","009150.KS"),("기업은행","024110.KS"),("SK이노베이션","096770.KS"),
-    ("HD한국조선해양","009540.KS"),("삼성화재","000810.KS"),("LG","003550.KS"),("아모레퍼시픽","090430.KS"),
-    ("S-Oil","010950.KS"),("고려아연","010130.KS"),("오리온","271560.KS"),("유한양행","000100.KS"),
-    ("롯데케미칼","011170.KS"),("한미반도체","042700.KS"),("삼성에스디에스","018260.KS"),("LS ELECTRIC","010120.KS"),
-    ("SK텔레콤","017670.KS"),("CJ제일제당","097950.KS"),("LG전자","066570.KS"),("현대글로비스","086280.KS"),
-    ("강원랜드","035250.KS"),("한진칼","180640.KS")
-]
-KOSDAQ_50 = [
-    ("에코프로비엠","247540.KQ"),("에코프로","086520.KQ"),("HLB","028300.KQ"),("알테오젠","196170.KQ"),
-    ("레인보우로보틱스","277810.KQ"),("리가켐바이오","141080.KQ"),("휴젤","145020.KQ"),("클래시스","214150.KQ"),
-    ("JYP Ent.","035900.KQ"),("파마리서치","214450.KQ"),("펄어비스","263750.KQ"),("에스엠","041510.KQ"),
-    ("셀트리온제약","068760.KQ"),("삼천당제약","000250.KQ"),("HPSP","403870.KQ"),("실리콘투","257720.KQ"),
-    ("주성엔지니어링","036930.KQ"),("원익IPS","240810.KQ"),("이오테크닉스","039030.KQ"),("리노공업","058470.KQ"),
-    ("SOOP","067160.KQ"),("ISC","095340.KQ"),("덕산네오룩스","213420.KQ"),("메디톡스","086900.KQ"),
-    ("동진쎄미켐","005290.KQ"),("엔켐","348370.KQ"),("와이지엔터테인먼트","122870.KQ"),("카페24","042000.KQ"),
-    ("에스티팜","237690.KQ"),("보로노이","310210.KQ"),("젬백스","082270.KQ"),("네이처셀","007390.KQ"),
-    ("큐렉소","060280.KQ"),("코스메카코리아","241710.KQ"),("브이티","018290.KQ"),("차바이오텍","085660.KQ"),
-    ("씨젠","096530.KQ"),("원텍","336570.KQ"),("대주전자재료","078600.KQ"),("티씨케이","064760.KQ"),
-    ("에스앤에스텍","101490.KQ"),("파크시스템스","140860.KQ"),("천보","278280.KQ"),("컴투스","078340.KQ"),
-    ("고영","098460.KQ"),("제이시스메디칼","287410.KQ"),("디어유","376300.KQ"),("오스템임플란트","048260.KQ"),
-    ("루닛","328130.KQ"),("셀바스AI","108860.KQ")
-]
-ETF_10 = [
-    ("KODEX 200","069500.KS"),("TIGER 200","102110.KS"),("KODEX 코스닥150","229200.KS"),("TIGER 미국S&P500","360750.KS"),
-    ("KODEX 미국S&P500TR","379800.KS"),("TIGER 미국나스닥100","133690.KS"),("KODEX 2차전지산업","305720.KS"),
-    ("KODEX 은행","091170.KS"),("KODEX 골드선물(H)","132030.KS"),("TIGER 리츠부동산인프라","329200.KS")
-]
-
 if "kospi_limit" not in st.session_state:
     st.session_state.kospi_limit = 10
 if "kosdaq_limit" not in st.session_state:
@@ -1077,16 +1178,28 @@ with c2:
 st.markdown('<div class="section-title">주요 ETF 10개 종목</div>', unsafe_allow_html=True)
 st.dataframe(make_stock_table(ETF_10), use_container_width=True, hide_index=True)
 
+# -----------------------------
+# SEARCH
+# -----------------------------
 st.markdown('<div class="section-title">관심있는 종목 검색</div>', unsafe_allow_html=True)
-search_q = st.text_input("종목코드 또는 티커를 입력해 주세요. 예: 005930 / 005930.KS / AAPL")
+search_q = st.text_input("종목코드, 티커, 한글 종목명을 입력해 주세요. 예: 005930 / 005930.KS / AAPL / 한화시스템")
+
 if search_q:
     found = search_symbol(search_q)
     if found:
-        ticker, row = found
-        render_card(f"검색 결과 · {ticker}", fmt_num(row["price"]), delta_html(row["diff"], row["pct"]), "Yahoo Finance")
+        display_name, ticker, row = found
+        render_card(
+            f"검색 결과 · {display_name} ({ticker})",
+            fmt_int(row["price"]),
+            delta_html(row["diff"], row["pct"]),
+            "Yahoo Finance"
+        )
     else:
-        st.info("검색 결과를 찾지 못했습니다. 종목코드 또는 티커 형식을 다시 확인해 주세요.")
+        st.info("검색 결과를 찾지 못했습니다. 종목명, 종목코드, 티커를 다시 확인해 주세요.")
 
+# -----------------------------
+# NEWS + LINKS
+# -----------------------------
 left, right = st.columns([1.45, 1])
 with left:
     st.markdown('<div class="section-title">주요 경제뉴스</div>', unsafe_allow_html=True)
@@ -1151,7 +1264,7 @@ st.markdown("""
     중간 영역에서는 코스피 주요 50개 종목과 코스닥 주요 50개 종목을 10개씩 확인할 수 있고,
     더보기 버튼으로 확장할 수 있습니다. ETF 주요 10개 종목 영역은 대표 지수형 ETF와
     미국 지수형 ETF, 금 ETF, 리츠 ETF 흐름을 참고하는 데 적합합니다.
-    관심있는 종목 검색 기능을 이용하면 종목코드 또는 티커 입력만으로 원하는 종목의 현재가와 등락률을 빠르게 확인할 수 있습니다.
+    관심있는 종목 검색 기능을 이용하면 종목코드, 티커, 한글 종목명으로 원하는 종목의 현재가와 등락률을 빠르게 확인할 수 있습니다.
   </p>
 
   <h3>3. 각 지수별 의미</h3>
