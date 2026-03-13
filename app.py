@@ -31,18 +31,15 @@ st.markdown("""
   --btn-text:#0b1220;
   --btn-border:#c8d4e6;
 }
-
 html, body, [data-testid="stAppViewContainer"]{
   background: linear-gradient(180deg,#020817 0%, #071122 100%);
   color: var(--text);
 }
-
 .block-container{
   padding-top: 4rem !important;
   padding-bottom: 2.2rem;
   max-width: 1440px;
 }
-
 .main-title{
   font-size: 2rem;
   line-height: 1.16;
@@ -57,7 +54,6 @@ html, body, [data-testid="stAppViewContainer"]{
   opacity: .92;
   font-weight: 700;
 }
-
 .top-time{
   background: rgba(15,29,51,.72);
   border:1px solid rgba(80,110,150,.30);
@@ -68,14 +64,12 @@ html, body, [data-testid="stAppViewContainer"]{
   font-weight: 700;
   font-size: .98rem;
 }
-
 .section-title{
   font-size: 1.5rem;
   font-weight: 800;
   margin: 1.1rem 0 .8rem 0;
   color: #fff;
 }
-
 .card{
   background: linear-gradient(180deg, rgba(17,32,58,.96) 0%, rgba(28,40,64,.96) 100%);
   border: 1px solid rgba(89,115,156,.42);
@@ -122,11 +116,9 @@ html, body, [data-testid="stAppViewContainer"]{
   font-size: .86rem;
   line-height: 1.4;
 }
-
 .up{ color: var(--green); }
 .down{ color: var(--red); }
 .flat{ color: #cbd5e1; }
-
 div[data-testid="stHorizontalBlock"] > div{
   padding-right: 8px;
   padding-left: 8px;
@@ -134,7 +126,6 @@ div[data-testid="stHorizontalBlock"] > div{
 [data-testid="column"]{
   padding-bottom: 8px;
 }
-
 .news-wrap{
   display:flex;
   flex-direction:column;
@@ -159,7 +150,6 @@ div[data-testid="stHorizontalBlock"] > div{
   font-size:.84rem;
   color: var(--muted);
 }
-
 .link-list a{
   display:block;
   margin:0 0 12px 0;
@@ -167,7 +157,6 @@ div[data-testid="stHorizontalBlock"] > div{
   text-decoration:none;
   line-height:1.5;
 }
-
 .market-mini{
   width:100%;
   border-collapse: collapse;
@@ -189,7 +178,6 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#eef4ff;
   background: rgba(10,22,40,.26);
 }
-
 .footer{
   margin-top: 26px;
   padding-top: 16px;
@@ -197,7 +185,6 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#8ea0ba;
   text-align:center;
 }
-
 .stButton > button{
   border-radius: 12px !important;
   font-weight: 800 !important;
@@ -215,7 +202,6 @@ div[data-testid="stHorizontalBlock"] > div{
   color: var(--btn-text) !important;
   opacity: 1 !important;
 }
-
 .stTextInput input{
   color: #f8fafc !important;
   -webkit-text-fill-color: #f8fafc !important;
@@ -231,12 +217,10 @@ div[data-testid="stHorizontalBlock"] > div{
 [data-testid="stTextInput"] p{
   color: #dbe6f6 !important;
 }
-
 [data-testid="stDataFrame"]{
   border-radius: 14px;
   overflow:hidden;
 }
-
 @media (max-width: 900px){
   .block-container{
     padding-top: 4.4rem !important;
@@ -290,7 +274,6 @@ def fmt_num(v, digits=2):
         pass
     return f"{v:,.{digits}f}"
 
-
 def fmt_int(v):
     if v is None:
         return "-"
@@ -301,7 +284,6 @@ def fmt_int(v):
         pass
     return f"{int(round(v)):,}"
 
-
 def fmt_billion_krw(v):
     if v is None:
         return "-"
@@ -311,7 +293,6 @@ def fmt_billion_krw(v):
     except Exception:
         return "-"
 
-
 def fmt_hundred_million_from_million(v):
     if v is None:
         return "-"
@@ -319,7 +300,6 @@ def fmt_hundred_million_from_million(v):
         return f"{v/100:,.0f}억원"
     except Exception:
         return "-"
-
 
 def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     if diff is None:
@@ -331,7 +311,6 @@ def delta_html(diff=None, pct=None, unit="", prefix="전일 대비"):
     else:
         body = f"{arrow} {diff:+,.2f}{unit} ({pct:+.2f}%)"
     return f'{prefix} <span class="{cls}">{body}</span>'
-
 
 def render_card(title, value, sub_html, source=None, note=None, big=True):
     value_class = "value big" if big else "value"
@@ -348,7 +327,7 @@ def render_card(title, value, sub_html, source=None, note=None, big=True):
     st.markdown("".join(html), unsafe_allow_html=True)
 
 # -----------------------------
-# COMMON HELPERS
+# HELPERS
 # -----------------------------
 def get_recent_bday_str(days_back=10):
     today = datetime.now(pytz.timezone("Asia/Seoul")).date()
@@ -362,7 +341,6 @@ def get_recent_bday_str(days_back=10):
         except Exception:
             pass
     return today.strftime("%Y%m%d")
-
 
 @st.cache_data(ttl=60)
 def yf_last_two(ticker):
@@ -379,7 +357,6 @@ def yf_last_two(ticker):
     except Exception:
         return None
 
-
 @st.cache_data(ttl=300)
 def get_fx_card_data():
     mapping = {
@@ -395,11 +372,9 @@ def get_fx_card_data():
             out[name] = row
     return out
 
-
 @st.cache_data(ttl=300)
 def get_brent():
     return yf_last_two("BZ=F")
-
 
 @st.cache_data(ttl=180)
 def get_index(ticker):
@@ -421,8 +396,8 @@ def get_base_rate():
                 continue
             text = re.sub(r"\s+", " ", r.text)
             patterns = [
-                r"기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)\s*",
-                r"한국은행기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)\s*",
+                r"기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)",
+                r"한국은행기준금리[^0-9]{0,30}([0-9]+\.[0-9]+)",
             ]
             for p in patterns:
                 m = re.search(p, text)
@@ -443,40 +418,29 @@ def get_gold_kr():
     sell = None
     note = None
 
-    # 1순위: 금시세닷컴
+    # 1) 금시세닷컴
     try:
-        r = requests.get(
-            "https://www.kumsise.com/main/index.php",
-            headers=HEADERS,
-            timeout=10
-        )
+        r = requests.get("https://www.kumsise.com/main/index.php", headers=HEADERS, timeout=10)
         if r.ok:
             text = re.sub(r"\s+", " ", r.text)
-
-            # 순금 행 안의 두 숫자
             m = re.search(r"순금\s*([0-9,]{5,})원.*?([0-9,]{5,})원", text, re.IGNORECASE)
             if m:
                 first = int(m.group(1).replace(",", ""))
                 second = int(m.group(2).replace(",", ""))
-
                 low_v, high_v = sorted([first, second])
-
                 if 200000 <= low_v <= 3000000:
                     sell = low_v
                 if 200000 <= high_v <= 3000000:
                     buy = high_v
-
                 note = "금시세닷컴 기준"
     except Exception:
         pass
 
-    # 2순위: koreagoldx
+    # 2) 한국금거래소
     if buy is None or sell is None:
         candidate_urls = [
             "https://koreagoldx.co.kr/price/gold",
             "https://koreagoldx.co.kr/",
-            "https://jongro.koreagoldx.co.kr/",
-            "https://cheongna.koreagoldx.co.kr/",
         ]
         for url in candidate_urls:
             try:
@@ -486,7 +450,7 @@ def get_gold_kr():
                 text = re.sub(r"\s+", " ", r.text)
 
                 p1 = re.search(
-                    r"순금(?:시세)?\s*Gold24k[-,]3[.,]75g\s*([0-9,]{5,})원?.{0,40}?([0-9,]{5,})원",
+                    r"Gold24k[-,]3[.,]75g\s*([0-9,]{5,})원?.{0,40}?([0-9,]{5,})원",
                     text,
                     re.IGNORECASE,
                 )
@@ -497,73 +461,29 @@ def get_gold_kr():
                         buy = b
                     if sell is None and 200000 <= s <= 3000000 and s != 0:
                         sell = s
-
-                if buy is None:
-                    for patt in [
-                        r"내가\s*살\s*때[^0-9]{0,40}([0-9,]{5,})",
-                        r"판매가[^0-9]{0,40}([0-9,]{5,})",
-                    ]:
-                        m = re.search(patt, text)
-                        if m:
-                            v = int(m.group(1).replace(",", ""))
-                            if 200000 <= v <= 3000000 and v != 0:
-                                buy = v
-                                break
-
-                if sell is None:
-                    for patt in [
-                        r"내가\s*팔\s*때[^0-9]{0,40}([0-9,]{5,})",
-                        r"매입가[^0-9]{0,40}([0-9,]{5,})",
-                    ]:
-                        m = re.search(patt, text)
-                        if m:
-                            v = int(m.group(1).replace(",", ""))
-                            if 200000 <= v <= 3000000 and v != 0:
-                                sell = v
-                                break
             except Exception:
                 continue
 
-    # 3순위: exgold
-    if buy is None:
+    # 3) 국제 금 선물 + 환율 추정 fallback
+    if buy is None or sell is None:
         try:
-            r = requests.get(
-                "https://www.exgold.co.kr/price/inquiry/domestic",
-                headers=HEADERS,
-                timeout=10
-            )
-            if r.ok:
-                text = re.sub(r"\s+", " ", r.text)
-                m = re.search(
-                    r"금기준가:\s*[0-9,\.]+\s*\(₩/g\):\s*([0-9,]+)\s*\(₩/3\.75g\)",
-                    text
-                )
-                if m:
-                    v = int(m.group(1).replace(",", ""))
-                    if 200000 <= v <= 3000000:
-                        buy = v
-                        if note is None:
-                            note = "exgold 국내시세 기준"
-        except Exception:
-            pass
+            gold_row = yf_last_two("GC=F")      # Gold Futures
+            usdkrw_row = yf_last_two("KRW=X")   # USD/KRW
+            if gold_row and usdkrw_row:
+                gold_usd_oz = gold_row["price"]
+                usdkrw = usdkrw_row["price"]
+                # 1 troy oz = 31.1034768g / 1돈 = 3.75g
+                krw_per_3_75g = gold_usd_oz * usdkrw * (3.75 / 31.1034768)
 
-    if sell is None:
-        try:
-            r = requests.get(
-                "https://www.exgold.co.kr/",
-                headers=HEADERS,
-                timeout=10
-            )
-            if r.ok:
-                text = re.sub(r"\s+", " ", r.text)
-                m = re.search(
-                    r"사업자\s*매입\s*시세.*?순금시세,\s*([0-9,]+)원",
-                    text
-                )
-                if m:
-                    v = int(m.group(1).replace(",", ""))
-                    if 200000 <= v <= 3000000:
-                        sell = v
+                # 국내 실거래 스프레드 대략 반영
+                est_sell = int(round(krw_per_3_75g * 0.98))
+                est_buy  = int(round(krw_per_3_75g * 1.12))
+
+                if sell is None:
+                    sell = est_sell
+                if buy is None:
+                    buy = est_buy
+                note = "국제 금 선물 + 원달러 환율 추정값"
         except Exception:
             pass
 
@@ -600,6 +520,7 @@ def get_opinet():
         f"http://www.opinet.co.kr/api/avgAllPrice.do?out=json&code={key}",
         f"http://www.opinet.co.kr/api/avgAllPrice.do?out=json&certkey={key}",
     ]
+
     last_text = ""
     for url in urls:
         try:
@@ -633,7 +554,7 @@ def get_opinet():
     return {"ok": False, "message": f"오피넷 응답에 유가 데이터가 없습니다. ({last_text[:120]})"}
 
 # -----------------------------
-# KOFIA DEPOSIT
+# KOFIA / MARKET OVERVIEW
 # -----------------------------
 @st.cache_data(ttl=900)
 def get_investor_deposit():
@@ -655,9 +576,6 @@ def get_investor_deposit():
             continue
     return {"ok": False, "value_million": None}
 
-# -----------------------------
-# KOREA MARKET OVERVIEW
-# -----------------------------
 @st.cache_data(ttl=900)
 def get_market_overview():
     ds = get_recent_bday_str()
@@ -738,7 +656,6 @@ def make_stock_table(items):
             })
     return pd.DataFrame(rows)
 
-
 @st.cache_data(ttl=900)
 def get_news():
     feeds = [
@@ -767,7 +684,6 @@ def get_news():
             seen.add(item["title"])
             out.append(item)
     return out[:10]
-
 
 @st.cache_data(ttl=900)
 def search_symbol(query):
@@ -836,14 +752,14 @@ with r1[2]:
     render_card("한국 금시세 1돈 · 살때",
                 f"₩{fmt_int(gold.get('buy'))}" if gold.get("buy") else "-",
                 "전일 대비 정보 없음",
-                "공개 금시세 페이지" if gold.get("ok") else None,
+                "공개 금시세 페이지 / fallback 계산" if gold.get("ok") else None,
                 gold.get("message"),
                 big=True)
 with r1[3]:
     render_card("한국 금시세 1돈 · 팔때",
                 f"₩{fmt_int(gold.get('sell'))}" if gold.get("sell") else "-",
                 "전일 대비 정보 없음",
-                "공개 금시세 페이지" if gold.get("ok") else None,
+                "공개 금시세 페이지 / fallback 계산" if gold.get("ok") else None,
                 gold.get("message"),
                 big=True)
 
@@ -862,7 +778,6 @@ with r2[0]:
                     None,
                     None,
                     big=True)
-
 with r2[1]:
     if fx:
         parts = []
@@ -877,13 +792,11 @@ with r2[1]:
                     big=False)
     else:
         render_card("원화환율", "-", "환율 데이터 없음", big=False)
-
 with r2[2]:
     render_card("국제유가 · 브렌트유",
                 f"${fmt_num(brent['price'])} / bbl" if brent else "-",
                 delta_html(brent["diff"], brent["pct"], unit=" 달러") if brent else "전일 대비 정보 없음",
                 "Yahoo Finance")
-
 with r2[3]:
     if opinet.get("ok"):
         notes = []
@@ -912,7 +825,7 @@ market_rows = {
     "종합주가지수": f"코스피 {fmt_num(kospi['price']) if kospi else '-'} / 코스닥 {fmt_num(kosdaq['price']) if kosdaq else '-'}",
     "거래량": f"기준일 {market_over.get('date', '-')}",
     "거래대금": f"코스피 {fmt_billion_krw(market_over.get('trading_value_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('trading_value_kosdaq'))}",
-    "고객예탁금": fmt_hundred_million_from_million(market_over.get("deposit_million")),
+    "고객예탁금": fmt_hundred_million_from_million(market_over.get('deposit_million')),
     "외국인 동향": f"코스피 {fmt_billion_krw(market_over.get('foreign_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('foreign_net_kosdaq'))}",
     "기관 동향": f"코스피 {fmt_billion_krw(market_over.get('inst_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('inst_net_kosdaq'))}",
 }
@@ -996,12 +909,7 @@ if search_q:
     found = search_symbol(search_q)
     if found:
         ticker, row = found
-        render_card(
-            f"검색 결과 · {ticker}",
-            fmt_num(row["price"]),
-            delta_html(row["diff"], row["pct"]),
-            "Yahoo Finance"
-        )
+        render_card(f"검색 결과 · {ticker}", fmt_num(row["price"]), delta_html(row["diff"], row["pct"]), "Yahoo Finance")
     else:
         st.info("검색 결과를 찾지 못했습니다. 종목코드 또는 티커 형식을 다시 확인해 주세요.")
 
@@ -1009,7 +917,6 @@ if search_q:
 # NEWS + LINKS
 # -----------------------------
 left, right = st.columns([1.45, 1])
-
 with left:
     st.markdown('<div class="section-title">주요 경제뉴스</div>', unsafe_allow_html=True)
     news_items = get_news()
@@ -1035,7 +942,6 @@ with right:
       <a href="https://www.opinet.co.kr/" target="_blank">오피넷</a>
       <a href="https://www.kumsise.com/main/index.php" target="_blank">금시세닷컴</a>
       <a href="https://koreagoldx.co.kr/price/gold" target="_blank">한국금거래소 금시세</a>
-      <a href="https://www.index.go.kr/" target="_blank">국가지표체계</a>
       <a href="https://www.hankyung.com/" target="_blank">한국경제신문</a>
       <a href="https://www.mk.co.kr/" target="_blank">매일경제</a>
       <a href="https://www.sedaily.com/" target="_blank">서울경제</a>
