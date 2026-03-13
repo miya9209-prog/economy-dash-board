@@ -336,7 +336,6 @@ def get_recent_bday_str():
     for i in range(10):
         d = today - timedelta(days=i)
         ds = d.strftime("%Y%m%d")
-
         try:
             df1 = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
             df2 = krx.get_market_ohlcv_by_ticker(ds, market="KOSDAQ")
@@ -427,7 +426,6 @@ def get_gold_kr():
     sell = None
     note = None
 
-    # 1) 금시세닷컴
     try:
         r = requests.get("https://www.kumsise.com/main/index.php", headers=HEADERS, timeout=10)
         if r.ok:
@@ -445,7 +443,6 @@ def get_gold_kr():
     except Exception:
         pass
 
-    # 2) 한국금거래소
     if buy is None or sell is None:
         candidate_urls = [
             "https://koreagoldx.co.kr/price/gold",
@@ -457,7 +454,6 @@ def get_gold_kr():
                 if not r.ok:
                     continue
                 text = re.sub(r"\s+", " ", r.text)
-
                 p1 = re.search(
                     r"Gold24k[-,]3[.,]75g\s*([0-9,]{5,})원?.{0,40}?([0-9,]{5,})원",
                     text,
@@ -473,21 +469,16 @@ def get_gold_kr():
             except Exception:
                 continue
 
-    # 3) 국제 금 선물 + 환율 추정 fallback
     if buy is None or sell is None:
         try:
-            gold_row = yf_last_two("GC=F")      # Gold Futures
-            usdkrw_row = yf_last_two("KRW=X")   # USD/KRW
+            gold_row = yf_last_two("GC=F")
+            usdkrw_row = yf_last_two("KRW=X")
             if gold_row and usdkrw_row:
                 gold_usd_oz = gold_row["price"]
                 usdkrw = usdkrw_row["price"]
-                # 1 troy oz = 31.1034768g / 1돈 = 3.75g
                 krw_per_3_75g = gold_usd_oz * usdkrw * (3.75 / 31.1034768)
-
-                # 국내 실거래 스프레드 대략 반영
                 est_sell = int(round(krw_per_3_75g * 0.98))
-                est_buy  = int(round(krw_per_3_75g * 1.12))
-
+                est_buy = int(round(krw_per_3_75g * 1.12))
                 if sell is None:
                     sell = est_sell
                 if buy is None:
@@ -497,17 +488,9 @@ def get_gold_kr():
             pass
 
     if buy is not None or sell is not None:
-        return {
-            "ok": True,
-            "buy": buy,
-            "sell": sell,
-            "message": note
-        }
+        return {"ok": True, "buy": buy, "sell": sell, "message": note}
 
-    return {
-        "ok": False,
-        "message": "공개 금시세 페이지 구조상 파싱 실패"
-    }
+    return {"ok": False, "message": "공개 금시세 페이지 구조상 파싱 실패"}
 
 # -----------------------------
 # OPINET
@@ -585,6 +568,14 @@ def get_investor_deposit():
             continue
     return {"ok": False, "value_million": None}
 
+def _safe_to_float(v):
+    try:
+        if pd.isna(v):
+            return None
+        return float(v)
+    except Exception:
+        return None
+
 @st.cache_data(ttl=900)
 def get_market_overview():
     ds = get_recent_bday_str()
@@ -600,49 +591,79 @@ def get_market_overview():
         "deposit_million": None,
     }
 
-    # 1. 거래대금: 종목별 OHLCV에서 합산
+    # 1) 시장 전체 거래대금 / 외국인 / 기관
     try:
-        df_kospi = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
-        if df_kospi is not None and not df_kospi.empty and "거래대금" in df_kospi.columns:
-            result["trading_value_kospi"] = float(df_kospi["거래대금"].fillna(0).sum())
+        df = krx.get_market_trading_value_by_date(ds, ds, "KOSPI")
+        if df is not None and not df.empty:
+            row = df.iloc[-1]
+            result["trading_value_kospi"] = _safe_to_float(row.get("전체"))
+            result["foreign_net_kospi"] = _safe_to_float(row.get("외국인합계"))
+            result["inst_net_kospi"] = _safe_to_float(row.get("기관합계"))
     except Exception:
         pass
 
     try:
-        df_kosdaq = krx.get_market_ohlcv_by_ticker(ds, market="KOSDAQ")
-        if df_kosdaq is not None and not df_kosdaq.empty and "거래대금" in df_kosdaq.columns:
-            result["trading_value_kosdaq"] = float(df_kosdaq["거래대금"].fillna(0).sum())
+        df = krx.get_market_trading_value_by_date(ds, ds, "KOSDAQ")
+        if df is not None and not df.empty:
+            row = df.iloc[-1]
+            result["trading_value_kosdaq"] = _safe_to_float(row.get("전체"))
+            result["foreign_net_kosdaq"] = _safe_to_float(row.get("외국인합계"))
+            result["inst_net_kosdaq"] = _safe_to_float(row.get("기관합계"))
     except Exception:
         pass
 
-    # 2. 외국인/기관 순매수: 투자자별 거래대금
-    def pick_investor_net(df, candidates):
+    # 2) fallback: 종목별 합산
+    if result["trading_value_kospi"] is None:
+        try:
+            df_k = krx.get_market_ohlcv_by_ticker(ds, market="KOSPI")
+            if df_k is not None and not df_k.empty and "거래대금" in df_k.columns:
+                result["trading_value_kospi"] = _safe_to_float(df_k["거래대금"].fillna(0).sum())
+        except Exception:
+            pass
+
+    if result["trading_value_kosdaq"] is None:
+        try:
+            df_k = krx.get_market_ohlcv_by_ticker(ds, market="KOSDAQ")
+            if df_k is not None and not df_k.empty and "거래대금" in df_k.columns:
+                result["trading_value_kosdaq"] = _safe_to_float(df_k["거래대금"].fillna(0).sum())
+        except Exception:
+            pass
+
+    # 3) fallback: 투자자별 테이블에서 기관/외국인 찾기
+    def pick_investor_net(df, names):
         if df is None or df.empty:
             return None
-        for name in candidates:
+        for name in names:
             if name in df.index:
                 row = df.loc[name]
                 if isinstance(row, pd.Series):
                     for col in ["순매수", "순매수금액", "순매수거래대금"]:
-                        if col in row.index and pd.notna(row[col]):
-                            return float(row[col])
+                        if col in row.index:
+                            val = _safe_to_float(row[col])
+                            if val is not None:
+                                return val
         return None
 
-    try:
-        inv_kospi = krx.get_market_trading_value_by_investor(ds, ds, "KOSPI")
-        result["foreign_net_kospi"] = pick_investor_net(inv_kospi, ["외국인합계", "외국인", "기타외국인"])
-        result["inst_net_kospi"] = pick_investor_net(inv_kospi, ["기관합계", "기관", "금융투자"])
-    except Exception:
-        pass
+    if result["foreign_net_kospi"] is None or result["inst_net_kospi"] is None:
+        try:
+            inv = krx.get_market_trading_value_by_investor(ds, ds, "KOSPI")
+            if result["foreign_net_kospi"] is None:
+                result["foreign_net_kospi"] = pick_investor_net(inv, ["외국인합계", "외국인", "기타외국인"])
+            if result["inst_net_kospi"] is None:
+                result["inst_net_kospi"] = pick_investor_net(inv, ["기관합계", "기관", "금융투자"])
+        except Exception:
+            pass
 
-    try:
-        inv_kosdaq = krx.get_market_trading_value_by_investor(ds, ds, "KOSDAQ")
-        result["foreign_net_kosdaq"] = pick_investor_net(inv_kosdaq, ["외국인합계", "외국인", "기타외국인"])
-        result["inst_net_kosdaq"] = pick_investor_net(inv_kosdaq, ["기관합계", "기관", "금융투자"])
-    except Exception:
-        pass
+    if result["foreign_net_kosdaq"] is None or result["inst_net_kosdaq"] is None:
+        try:
+            inv = krx.get_market_trading_value_by_investor(ds, ds, "KOSDAQ")
+            if result["foreign_net_kosdaq"] is None:
+                result["foreign_net_kosdaq"] = pick_investor_net(inv, ["외국인합계", "외국인", "기타외국인"])
+            if result["inst_net_kosdaq"] is None:
+                result["inst_net_kosdaq"] = pick_investor_net(inv, ["기관합계", "기관", "금융투자"])
+        except Exception:
+            pass
 
-    # 3. 고객예탁금
     dep = get_investor_deposit()
     if dep.get("ok"):
         result["deposit_million"] = dep.get("value_million")
@@ -966,4 +987,4 @@ with right:
     </div>
     ''', unsafe_allow_html=True)
 
-st.markdown('<div class="footer">© MISHARP COMPANY by MIYAWA 제작. 무단전제 복제 게재를 금합니다. 2026.</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">© miyawa 제작</div>', unsafe_allow_html=True)
