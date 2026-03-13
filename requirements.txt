@@ -4,3 +4,4 @@ requests
 yfinance
 pytz
 feedparser
+pykrx
