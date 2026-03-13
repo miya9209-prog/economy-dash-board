@@ -2,12 +2,12 @@ import math
 import re
 from datetime import datetime, timedelta
 
+import feedparser
 import pandas as pd
 import pytz
 import requests
 import streamlit as st
 import yfinance as yf
-import feedparser
 from pykrx import stock as krx
 
 st.set_page_config(page_title="경제 대시보드", layout="wide")
@@ -17,6 +17,9 @@ HEADERS = {
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
 }
 
+# -----------------------------
+# STYLE
+# -----------------------------
 st.markdown("""
 <style>
 :root{
@@ -28,15 +31,18 @@ st.markdown("""
   --btn-text:#0b1220;
   --btn-border:#c8d4e6;
 }
+
 html, body, [data-testid="stAppViewContainer"]{
   background: linear-gradient(180deg,#020817 0%, #071122 100%);
   color: var(--text);
 }
+
 .block-container{
   padding-top: 4rem !important;
   padding-bottom: 2.2rem;
   max-width: 1440px;
 }
+
 .main-title{
   font-size: 2rem;
   line-height: 1.16;
@@ -51,6 +57,7 @@ html, body, [data-testid="stAppViewContainer"]{
   opacity: .92;
   font-weight: 700;
 }
+
 .top-time{
   background: rgba(15,29,51,.72);
   border:1px solid rgba(80,110,150,.30);
@@ -61,12 +68,14 @@ html, body, [data-testid="stAppViewContainer"]{
   font-weight: 700;
   font-size: .98rem;
 }
+
 .section-title{
   font-size: 1.5rem;
   font-weight: 800;
   margin: 1.1rem 0 .8rem 0;
   color: #fff;
 }
+
 .card{
   background: linear-gradient(180deg, rgba(17,32,58,.96) 0%, rgba(28,40,64,.96) 100%);
   border: 1px solid rgba(89,115,156,.42);
@@ -113,6 +122,7 @@ html, body, [data-testid="stAppViewContainer"]{
   font-size: .86rem;
   line-height: 1.4;
 }
+
 .up{ color: var(--green); }
 .down{ color: var(--red); }
 .flat{ color: #cbd5e1; }
@@ -149,6 +159,7 @@ div[data-testid="stHorizontalBlock"] > div{
   font-size:.84rem;
   color: var(--muted);
 }
+
 .link-list a{
   display:block;
   margin:0 0 12px 0;
@@ -156,6 +167,7 @@ div[data-testid="stHorizontalBlock"] > div{
   text-decoration:none;
   line-height:1.5;
 }
+
 .market-mini{
   width:100%;
   border-collapse: collapse;
@@ -177,6 +189,7 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#eef4ff;
   background: rgba(10,22,40,.26);
 }
+
 .footer{
   margin-top: 26px;
   padding-top: 16px;
@@ -184,6 +197,7 @@ div[data-testid="stHorizontalBlock"] > div{
   color:#8ea0ba;
   text-align:center;
 }
+
 .stButton > button{
   border-radius: 12px !important;
   font-weight: 800 !important;
@@ -201,6 +215,7 @@ div[data-testid="stHorizontalBlock"] > div{
   color: var(--btn-text) !important;
   opacity: 1 !important;
 }
+
 .stTextInput input{
   color: #f8fafc !important;
   -webkit-text-fill-color: #f8fafc !important;
@@ -216,10 +231,12 @@ div[data-testid="stHorizontalBlock"] > div{
 [data-testid="stTextInput"] p{
   color: #dbe6f6 !important;
 }
+
 [data-testid="stDataFrame"]{
   border-radius: 14px;
   overflow:hidden;
 }
+
 @media (max-width: 900px){
   .block-container{
     padding-top: 4.4rem !important;
@@ -260,7 +277,9 @@ div[data-testid="stHorizontalBlock"] > div{
 </style>
 """, unsafe_allow_html=True)
 
-
+# -----------------------------
+# FORMATTERS
+# -----------------------------
 def fmt_num(v, digits=2):
     if v is None:
         return "-"
@@ -287,7 +306,8 @@ def fmt_billion_krw(v):
     if v is None:
         return "-"
     try:
-        return f"{v/100000000:,.0f}억원"
+        sign = "-" if v < 0 else ""
+        return f"{sign}{abs(v)/100000000:,.0f}억원"
     except Exception:
         return "-"
 
@@ -327,7 +347,9 @@ def render_card(title, value, sub_html, source=None, note=None, big=True):
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
 
-
+# -----------------------------
+# COMMON HELPERS
+# -----------------------------
 def get_recent_bday_str(days_back=10):
     today = datetime.now(pytz.timezone("Asia/Seoul")).date()
     for i in range(days_back + 1):
@@ -383,7 +405,9 @@ def get_brent():
 def get_index(ticker):
     return yf_last_two(ticker)
 
-
+# -----------------------------
+# BASE RATE
+# -----------------------------
 @st.cache_data(ttl=3600)
 def get_base_rate():
     urls = [
@@ -410,73 +434,155 @@ def get_base_rate():
             continue
     return {"ok": False, "message": "기준금리 파싱 실패"}
 
-
+# -----------------------------
+# GOLD PRICE
+# -----------------------------
 @st.cache_data(ttl=1800)
 def get_gold_kr():
-    candidate_urls = [
-        "https://koreagoldx.co.kr/",
-        "https://jongro.koreagoldx.co.kr/",
-        "https://cheongna.koreagoldx.co.kr/",
-        "https://m.koreagoldx.co.kr/price/gold",
-        "https://www.kgoldse.co.kr/",
-        "https://www.goldsilvershop.co.kr/",
-        "https://www.kumsise.com/",
-    ]
     buy = None
     sell = None
+    note = None
 
-    for url in candidate_urls:
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=10)
-            if not r.ok:
-                continue
+    # 1순위: 금시세닷컴
+    try:
+        r = requests.get(
+            "https://www.kumsise.com/main/index.php",
+            headers=HEADERS,
+            timeout=10
+        )
+        if r.ok:
             text = re.sub(r"\s+", " ", r.text)
 
-            p1 = re.search(
-                r"순금(?:시세)?\s*Gold24k[-,]3[.,]75g\s*([0-9,]{5,})원?.{0,40}?([0-9,]{5,})원",
-                text,
-                re.IGNORECASE,
+            # 순금 행 안의 두 숫자
+            m = re.search(r"순금\s*([0-9,]{5,})원.*?([0-9,]{5,})원", text, re.IGNORECASE)
+            if m:
+                first = int(m.group(1).replace(",", ""))
+                second = int(m.group(2).replace(",", ""))
+
+                low_v, high_v = sorted([first, second])
+
+                if 200000 <= low_v <= 3000000:
+                    sell = low_v
+                if 200000 <= high_v <= 3000000:
+                    buy = high_v
+
+                note = "금시세닷컴 기준"
+    except Exception:
+        pass
+
+    # 2순위: koreagoldx
+    if buy is None or sell is None:
+        candidate_urls = [
+            "https://koreagoldx.co.kr/price/gold",
+            "https://koreagoldx.co.kr/",
+            "https://jongro.koreagoldx.co.kr/",
+            "https://cheongna.koreagoldx.co.kr/",
+        ]
+        for url in candidate_urls:
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=10)
+                if not r.ok:
+                    continue
+                text = re.sub(r"\s+", " ", r.text)
+
+                p1 = re.search(
+                    r"순금(?:시세)?\s*Gold24k[-,]3[.,]75g\s*([0-9,]{5,})원?.{0,40}?([0-9,]{5,})원",
+                    text,
+                    re.IGNORECASE,
+                )
+                if p1:
+                    b = int(p1.group(1).replace(",", ""))
+                    s = int(p1.group(2).replace(",", ""))
+                    if buy is None and 200000 <= b <= 3000000 and b != 0:
+                        buy = b
+                    if sell is None and 200000 <= s <= 3000000 and s != 0:
+                        sell = s
+
+                if buy is None:
+                    for patt in [
+                        r"내가\s*살\s*때[^0-9]{0,40}([0-9,]{5,})",
+                        r"판매가[^0-9]{0,40}([0-9,]{5,})",
+                    ]:
+                        m = re.search(patt, text)
+                        if m:
+                            v = int(m.group(1).replace(",", ""))
+                            if 200000 <= v <= 3000000 and v != 0:
+                                buy = v
+                                break
+
+                if sell is None:
+                    for patt in [
+                        r"내가\s*팔\s*때[^0-9]{0,40}([0-9,]{5,})",
+                        r"매입가[^0-9]{0,40}([0-9,]{5,})",
+                    ]:
+                        m = re.search(patt, text)
+                        if m:
+                            v = int(m.group(1).replace(",", ""))
+                            if 200000 <= v <= 3000000 and v != 0:
+                                sell = v
+                                break
+            except Exception:
+                continue
+
+    # 3순위: exgold
+    if buy is None:
+        try:
+            r = requests.get(
+                "https://www.exgold.co.kr/price/inquiry/domestic",
+                headers=HEADERS,
+                timeout=10
             )
-            if p1:
-                b = int(p1.group(1).replace(",", ""))
-                s = int(p1.group(2).replace(",", ""))
-                if 200000 <= b <= 3000000 and b != 0:
-                    buy = b
-                if 200000 <= s <= 3000000 and s != 0:
-                    sell = s
-
-            if buy is None:
-                for patt in [
-                    r"내가\s*살\s*때[^0-9]{0,40}([0-9,]{5,})",
-                    r"판매가[^0-9]{0,40}([0-9,]{5,})",
-                ]:
-                    m = re.search(patt, text)
-                    if m:
-                        v = int(m.group(1).replace(",", ""))
-                        if 200000 <= v <= 3000000 and v != 0:
-                            buy = v
-                            break
-
-            if sell is None:
-                for patt in [
-                    r"내가\s*팔\s*때[^0-9]{0,40}([0-9,]{5,})",
-                    r"매입가[^0-9]{0,40}([0-9,]{5,})",
-                ]:
-                    m = re.search(patt, text)
-                    if m:
-                        v = int(m.group(1).replace(",", ""))
-                        if 200000 <= v <= 3000000 and v != 0:
-                            sell = v
-                            break
-
-            if buy is not None or sell is not None:
-                return {"ok": True, "buy": buy, "sell": sell, "message": None}
+            if r.ok:
+                text = re.sub(r"\s+", " ", r.text)
+                m = re.search(
+                    r"금기준가:\s*[0-9,\.]+\s*\(₩/g\):\s*([0-9,]+)\s*\(₩/3\.75g\)",
+                    text
+                )
+                if m:
+                    v = int(m.group(1).replace(",", ""))
+                    if 200000 <= v <= 3000000:
+                        buy = v
+                        if note is None:
+                            note = "exgold 국내시세 기준"
         except Exception:
-            continue
+            pass
 
-    return {"ok": False, "message": "공개 금시세 페이지 구조상 파싱 실패"}
+    if sell is None:
+        try:
+            r = requests.get(
+                "https://www.exgold.co.kr/",
+                headers=HEADERS,
+                timeout=10
+            )
+            if r.ok:
+                text = re.sub(r"\s+", " ", r.text)
+                m = re.search(
+                    r"사업자\s*매입\s*시세.*?순금시세,\s*([0-9,]+)원",
+                    text
+                )
+                if m:
+                    v = int(m.group(1).replace(",", ""))
+                    if 200000 <= v <= 3000000:
+                        sell = v
+        except Exception:
+            pass
 
+    if buy is not None or sell is not None:
+        return {
+            "ok": True,
+            "buy": buy,
+            "sell": sell,
+            "message": note
+        }
 
+    return {
+        "ok": False,
+        "message": "공개 금시세 페이지 구조상 파싱 실패"
+    }
+
+# -----------------------------
+# OPINET
+# -----------------------------
 @st.cache_data(ttl=600)
 def get_opinet():
     key = ""
@@ -526,7 +632,9 @@ def get_opinet():
 
     return {"ok": False, "message": f"오피넷 응답에 유가 데이터가 없습니다. ({last_text[:120]})"}
 
-
+# -----------------------------
+# KOFIA DEPOSIT
+# -----------------------------
 @st.cache_data(ttl=900)
 def get_investor_deposit():
     urls = [
@@ -539,8 +647,6 @@ def get_investor_deposit():
             if not r.ok:
                 continue
             text = re.sub(r"\s+", " ", r.text)
-
-            # 예: 투자자예탁금: 백만원 | 03/06: 129,957,423 -929,893 -0.71%
             m = re.search(r"투자자예탁금[^0-9]{0,50}([0-9,]{5,})", text)
             if m:
                 val = int(m.group(1).replace(",", ""))
@@ -549,7 +655,9 @@ def get_investor_deposit():
             continue
     return {"ok": False, "value_million": None}
 
-
+# -----------------------------
+# KOREA MARKET OVERVIEW
+# -----------------------------
 @st.cache_data(ttl=900)
 def get_market_overview():
     ds = get_recent_bday_str()
@@ -605,7 +713,9 @@ def get_market_overview():
 
     return result
 
-
+# -----------------------------
+# TABLE / NEWS / SEARCH
+# -----------------------------
 def make_stock_table(items):
     rows = []
     for name, ticker in items:
@@ -678,19 +788,11 @@ def search_symbol(query):
             return ticker, row
     return None
 
-
+# -----------------------------
+# DATA LOAD
+# -----------------------------
 kst = datetime.now(pytz.timezone("Asia/Seoul"))
 est = datetime.now(pytz.timezone("US/Eastern"))
-
-st.markdown('<div class="main-title">경제 대시보드 <span class="en">(Economy Dash board)</span></div>', unsafe_allow_html=True)
-
-t1, t2 = st.columns(2)
-with t1:
-    st.markdown(f'<div class="top-time">한국 시간 · {kst.strftime("%Y-%m-%d (%a) %H:%M:%S")}</div>', unsafe_allow_html=True)
-with t2:
-    st.markdown(f'<div class="top-time">미국 동부 시간 · {est.strftime("%Y-%m-%d (%a) %H:%M:%S")}</div>', unsafe_allow_html=True)
-
-st.caption("자동 새로고침: 60초")
 
 kospi = get_index("^KS11")
 kosdaq = get_index("^KQ11")
@@ -701,6 +803,22 @@ opinet = get_opinet()
 fx = get_fx_card_data()
 market_over = get_market_overview()
 
+# -----------------------------
+# HEADER
+# -----------------------------
+st.markdown('<div class="main-title">경제 대시보드 <span class="en">(Economy Dash board)</span></div>', unsafe_allow_html=True)
+
+t1, t2 = st.columns(2)
+with t1:
+    st.markdown(f'<div class="top-time">한국 시간 · {kst.strftime("%Y-%m-%d (%a) %H:%M:%S")}</div>', unsafe_allow_html=True)
+with t2:
+    st.markdown(f'<div class="top-time">미국 동부 시간 · {est.strftime("%Y-%m-%d (%a) %H:%M:%S")}</div>', unsafe_allow_html=True)
+
+st.caption("자동 새로고침: 60초")
+
+# -----------------------------
+# METRIC CARDS
+# -----------------------------
 st.markdown('<div class="section-title">오늘의 핵심 지표</div>', unsafe_allow_html=True)
 
 r1 = st.columns(4)
@@ -785,11 +903,14 @@ with r2[3]:
                     "오피넷",
                     big=False)
 
+# -----------------------------
+# MARKET OVERVIEW
+# -----------------------------
 st.markdown('<div class="section-title">오늘의 한국증시</div>', unsafe_allow_html=True)
 
 market_rows = {
     "종합주가지수": f"코스피 {fmt_num(kospi['price']) if kospi else '-'} / 코스닥 {fmt_num(kosdaq['price']) if kosdaq else '-'}",
-    "거래량": f"코스피·코스닥 개별 종목 합산은 표 하단 종목표 참고",
+    "거래량": f"기준일 {market_over.get('date', '-')}",
     "거래대금": f"코스피 {fmt_billion_krw(market_over.get('trading_value_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('trading_value_kosdaq'))}",
     "고객예탁금": fmt_hundred_million_from_million(market_over.get("deposit_million")),
     "외국인 동향": f"코스피 {fmt_billion_krw(market_over.get('foreign_net_kospi'))} / 코스닥 {fmt_billion_krw(market_over.get('foreign_net_kosdaq'))}",
@@ -802,6 +923,9 @@ for k, v in market_rows.items():
 rows.append("</tbody></table>")
 st.markdown("".join(rows), unsafe_allow_html=True)
 
+# -----------------------------
+# STOCK LISTS
+# -----------------------------
 KOSPI_50 = [
     ("삼성전자","005930.KS"),("SK하이닉스","000660.KS"),("LG에너지솔루션","373220.KS"),("삼성바이오로직스","207940.KS"),
     ("현대차","005380.KS"),("기아","000270.KS"),("셀트리온","068270.KS"),("KB금융","105560.KS"),
@@ -817,6 +941,7 @@ KOSPI_50 = [
     ("SK텔레콤","017670.KS"),("CJ제일제당","097950.KS"),("LG전자","066570.KS"),("현대글로비스","086280.KS"),
     ("강원랜드","035250.KS"),("한진칼","180640.KS")
 ]
+
 KOSDAQ_50 = [
     ("에코프로비엠","247540.KQ"),("에코프로","086520.KQ"),("HLB","028300.KQ"),("알테오젠","196170.KQ"),
     ("레인보우로보틱스","277810.KQ"),("리가켐바이오","141080.KQ"),("휴젤","145020.KQ"),("클래시스","214150.KQ"),
@@ -832,6 +957,7 @@ KOSDAQ_50 = [
     ("고영","098460.KQ"),("제이시스메디칼","287410.KQ"),("디어유","376300.KQ"),("오스템임플란트","048260.KQ"),
     ("루닛","328130.KQ"),("셀바스AI","108860.KQ")
 ]
+
 ETF_10 = [
     ("KODEX 200","069500.KS"),("TIGER 200","102110.KS"),("KODEX 코스닥150","229200.KS"),("TIGER 미국S&P500","360750.KS"),
     ("KODEX 미국S&P500TR","379800.KS"),("TIGER 미국나스닥100","133690.KS"),("KODEX 2차전지산업","305720.KS"),
@@ -861,20 +987,29 @@ with c2:
 st.markdown('<div class="section-title">주요 ETF 10개 종목</div>', unsafe_allow_html=True)
 st.dataframe(make_stock_table(ETF_10), use_container_width=True, hide_index=True)
 
+# -----------------------------
+# SEARCH
+# -----------------------------
 st.markdown('<div class="section-title">관심있는 종목 검색</div>', unsafe_allow_html=True)
 search_q = st.text_input("종목코드 또는 티커를 입력해 주세요. 예: 005930 / 005930.KS / AAPL")
 if search_q:
     found = search_symbol(search_q)
     if found:
         ticker, row = found
-        render_card(f"검색 결과 · {ticker}",
-                    fmt_num(row["price"]),
-                    delta_html(row["diff"], row["pct"]),
-                    "Yahoo Finance")
+        render_card(
+            f"검색 결과 · {ticker}",
+            fmt_num(row["price"]),
+            delta_html(row["diff"], row["pct"]),
+            "Yahoo Finance"
+        )
     else:
         st.info("검색 결과를 찾지 못했습니다. 종목코드 또는 티커 형식을 다시 확인해 주세요.")
 
+# -----------------------------
+# NEWS + LINKS
+# -----------------------------
 left, right = st.columns([1.45, 1])
+
 with left:
     st.markdown('<div class="section-title">주요 경제뉴스</div>', unsafe_allow_html=True)
     news_items = get_news()
@@ -898,7 +1033,8 @@ with right:
       <a href="https://data.krx.co.kr/" target="_blank">KRX 정보데이터시스템</a>
       <a href="https://freesis.kofia.or.kr/" target="_blank">금융투자협회 FreeSIS</a>
       <a href="https://www.opinet.co.kr/" target="_blank">오피넷</a>
-      <a href="https://koreagoldx.co.kr/" target="_blank">한국금거래소</a>
+      <a href="https://www.kumsise.com/main/index.php" target="_blank">금시세닷컴</a>
+      <a href="https://koreagoldx.co.kr/price/gold" target="_blank">한국금거래소 금시세</a>
       <a href="https://www.index.go.kr/" target="_blank">국가지표체계</a>
       <a href="https://www.hankyung.com/" target="_blank">한국경제신문</a>
       <a href="https://www.mk.co.kr/" target="_blank">매일경제</a>
