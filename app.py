@@ -378,19 +378,24 @@ div[data-testid="stHorizontalBlock"] > div{
 .stButton > button{
   border-radius: 12px !important;
   font-weight: 800 !important;
-  color: var(--btn-text) !important;
-  background: var(--btn-bg) !important;
-  border: 1px solid var(--btn-border) !important;
+  color: #0b1220 !important;
+  background: #eef3fb !important;
+  border: 1px solid #c8d4e6 !important;
 }
 .stButton > button:hover{
-  color: var(--btn-text) !important;
+  color: #0b1220 !important;
   background: #f7f9fd !important;
+  border: 1px solid #b8c8dc !important;
+}
+.stButton > button:focus{
+  color: #0b1220 !important;
 }
 .stButton > button p,
 .stButton > button span,
 .stButton > button div{
-  color: var(--btn-text) !important;
+  color: #0b1220 !important;
   opacity: 1 !important;
+  font-weight: 800 !important;
 }
 .stTextInput input{
   color: #f8fafc !important;
@@ -820,7 +825,7 @@ def get_korea_market_summary():
     }
 
 # -----------------------------
-# TABLE / NEWS / SEARCH
+# TABLE / NEWS / SEARCH DATA
 # -----------------------------
 def make_stock_table(items):
     rows = []
@@ -1218,29 +1223,36 @@ st.dataframe(make_stock_table(ETF_10), use_container_width=True, hide_index=True
 # -----------------------------
 st.markdown('<div class="section-title">관심있는 종목 검색</div>', unsafe_allow_html=True)
 
-with st.form("stock_search_form", clear_on_submit=False):
-    search_q = st.text_input(
-        "종목코드, 티커, 한글 종목명을 입력해 주세요. 예: 005930 / 005930.KS / AAPL / 한화시스템 / 한화"
-    )
-    submitted = st.form_submit_button("종목 조회")
+search_q = st.text_input(
+    "종목코드, 티커, 한글 종목명을 입력해 주세요. 예: 005930 / 005930.KS / AAPL / 한화시스템 / 한화",
+    key="stock_search_input"
+)
 
-if submitted and search_q:
+search_clicked = st.button("종목 조회", key="stock_search_btn")
+
+def render_search_result(display_name, ticker, row):
+    render_card(
+        f"검색 결과 · {display_name} ({ticker})",
+        fmt_int(row["price"]),
+        delta_html(row["diff"], row["pct"]),
+        "Yahoo Finance"
+    )
+
+if search_clicked and search_q:
     found = search_symbol(search_q)
 
     if found and found["mode"] == "exact":
-        render_card(
-            f"검색 결과 · {found['display_name']} ({found['ticker']})",
-            fmt_int(found["row"]["price"]),
-            delta_html(found["row"]["diff"], found["row"]["pct"]),
-            "Yahoo Finance"
-        )
+        render_search_result(found["display_name"], found["ticker"], found["row"])
 
     elif found and found["mode"] == "partial":
         st.warning("정확한 종목명이 아니어서 아래 후보를 찾았습니다.")
-        candidate_rows = []
-        for name, ticker in found["matches"]:
-            candidate_rows.append({"종목명": name, "티커": ticker})
-        st.dataframe(pd.DataFrame(candidate_rows), use_container_width=True, hide_index=True)
+        st.markdown("##### 후보 종목 선택")
+
+        for idx, (name, ticker) in enumerate(found["matches"]):
+            if st.button(f"{name} ({ticker})", key=f"candidate_{idx}_{ticker}"):
+                exact = search_symbol(name)
+                if exact and exact["mode"] == "exact":
+                    render_search_result(exact["display_name"], exact["ticker"], exact["row"])
 
     else:
         st.info("검색 결과를 찾지 못했습니다. 종목명, 종목코드, 티커를 다시 확인해 주세요.")
