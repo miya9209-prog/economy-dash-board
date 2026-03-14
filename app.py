@@ -537,7 +537,7 @@ def render_card(title, value, sub_html, source=None, note=None, big=True):
 # -----------------------------
 # DATA HELPERS
 # -----------------------------
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=600)
 def yf_last_two(ticker):
     try:
         hist = yf.Ticker(ticker).history(period="5d", interval="1d", auto_adjust=False)
@@ -874,7 +874,6 @@ def get_news():
             out.append(item)
     return out[:10]
 
-
 # -----------------------------
 # STOCK UNIVERSE
 # -----------------------------
@@ -947,6 +946,31 @@ for k, v in EXTRA_NAME_MAP.items():
     NAME_TO_TICKER[k.replace(" ", "").lower()] = v
 
 
+def find_partial_matches(query: str, limit: int = 10):
+    q = query.strip().lower().replace(" ", "")
+    if not q:
+        return []
+
+    matches = []
+    seen = set()
+
+    for name, ticker in ALL_SEARCH_ITEMS:
+        key = name.lower().replace(" ", "")
+        if q in key and (name, ticker) not in seen:
+            matches.append((name, ticker))
+            seen.add((name, ticker))
+
+    for alias, ticker in EXTRA_NAME_MAP.items():
+        alias_key = alias.lower().replace(" ", "")
+        if q in alias_key:
+            pair = (alias, ticker)
+            if pair not in seen:
+                matches.append(pair)
+                seen.add(pair)
+
+    return matches[:limit]
+
+
 @st.cache_data(ttl=900)
 def search_symbol(query):
     q = query.strip()
@@ -956,18 +980,18 @@ def search_symbol(query):
     q_lower = q.lower().strip()
     q_compact = q.replace(" ", "").lower().strip()
 
-    # 1. 한글/영문 종목명 검색
+    # 1. 한글/영문 종목명 완전일치
     if q_lower in NAME_TO_TICKER:
         ticker = NAME_TO_TICKER[q_lower]
         row = yf_last_two(ticker)
         if row:
-            return q, ticker, row
+            return {"mode": "exact", "display_name": q, "ticker": ticker, "row": row}
 
     if q_compact in NAME_TO_TICKER:
         ticker = NAME_TO_TICKER[q_compact]
         row = yf_last_two(ticker)
         if row:
-            return q, ticker, row
+            return {"mode": "exact", "display_name": q, "ticker": ticker, "row": row}
 
     # 2. 숫자 코드 검색
     candidates = []
@@ -993,7 +1017,18 @@ def search_symbol(query):
     for ticker in uniq_candidates:
         row = yf_last_two(ticker)
         if row:
-            return q, ticker, row
+            return {"mode": "exact", "display_name": q, "ticker": ticker, "row": row}
+
+    # 4. 부분일치
+    partials = find_partial_matches(q)
+    if len(partials) == 1:
+        name, ticker = partials[0]
+        row = yf_last_two(ticker)
+        if row:
+            return {"mode": "exact", "display_name": name, "ticker": ticker, "row": row}
+
+    if len(partials) > 1:
+        return {"mode": "partial", "matches": partials}
 
     return None
 
@@ -1182,18 +1217,31 @@ st.dataframe(make_stock_table(ETF_10), use_container_width=True, hide_index=True
 # SEARCH
 # -----------------------------
 st.markdown('<div class="section-title">관심있는 종목 검색</div>', unsafe_allow_html=True)
-search_q = st.text_input("종목코드, 티커, 한글 종목명을 입력해 주세요. 예: 005930 / 005930.KS / AAPL / 한화시스템")
 
-if search_q:
+with st.form("stock_search_form", clear_on_submit=False):
+    search_q = st.text_input(
+        "종목코드, 티커, 한글 종목명을 입력해 주세요. 예: 005930 / 005930.KS / AAPL / 한화시스템 / 한화"
+    )
+    submitted = st.form_submit_button("종목 조회")
+
+if submitted and search_q:
     found = search_symbol(search_q)
-    if found:
-        display_name, ticker, row = found
+
+    if found and found["mode"] == "exact":
         render_card(
-            f"검색 결과 · {display_name} ({ticker})",
-            fmt_int(row["price"]),
-            delta_html(row["diff"], row["pct"]),
+            f"검색 결과 · {found['display_name']} ({found['ticker']})",
+            fmt_int(found["row"]["price"]),
+            delta_html(found["row"]["diff"], found["row"]["pct"]),
             "Yahoo Finance"
         )
+
+    elif found and found["mode"] == "partial":
+        st.warning("정확한 종목명이 아니어서 아래 후보를 찾았습니다.")
+        candidate_rows = []
+        for name, ticker in found["matches"]:
+            candidate_rows.append({"종목명": name, "티커": ticker})
+        st.dataframe(pd.DataFrame(candidate_rows), use_container_width=True, hide_index=True)
+
     else:
         st.info("검색 결과를 찾지 못했습니다. 종목명, 종목코드, 티커를 다시 확인해 주세요.")
 
