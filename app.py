@@ -1773,9 +1773,16 @@ with news_left:
         for item in news_items[:st.session_state.economy_news_limit]:
             st.markdown(render_news_item(item), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state.economy_news_limit < min(50, len(news_items)) and st.button("경제뉴스 더보기", key="economy_news_more", use_container_width=True):
-            st.session_state.economy_news_limit = min(st.session_state.economy_news_limit + 10, min(50, len(news_items)))
-            st.rerun()
+        news_max = min(50, len(news_items))
+        btn_more_col, btn_fold_col = st.columns(2)
+        with btn_more_col:
+            if st.session_state.economy_news_limit < news_max and st.button("경제뉴스 더보기", key="economy_news_more", use_container_width=True):
+                st.session_state.economy_news_limit = min(st.session_state.economy_news_limit + 10, news_max)
+                st.rerun()
+        with btn_fold_col:
+            if st.session_state.economy_news_limit > 10 and st.button("경제뉴스 접기", key="economy_news_fold", use_container_width=True):
+                st.session_state.economy_news_limit = 10
+                st.rerun()
     else:
         st.info('뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
 with news_divider:
@@ -1788,9 +1795,16 @@ with news_right:
         for item in industry_news[:st.session_state.industry_news_limit]:
             st.markdown(render_news_item(item), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        if st.session_state.industry_news_limit < min(50, len(industry_news)) and st.button("패션·유통·IT·마케팅 뉴스 더보기", key="industry_news_more", use_container_width=True):
-            st.session_state.industry_news_limit = min(st.session_state.industry_news_limit + 10, min(50, len(industry_news)))
-            st.rerun()
+        industry_news_max = min(50, len(industry_news))
+        btn_more_col, btn_fold_col = st.columns(2)
+        with btn_more_col:
+            if st.session_state.industry_news_limit < industry_news_max and st.button("패션·유통·IT·마케팅 뉴스 더보기", key="industry_news_more", use_container_width=True):
+                st.session_state.industry_news_limit = min(st.session_state.industry_news_limit + 10, industry_news_max)
+                st.rerun()
+        with btn_fold_col:
+            if st.session_state.industry_news_limit > 10 and st.button("패션·유통·IT·마케팅 뉴스 접기", key="industry_news_fold", use_container_width=True):
+                st.session_state.industry_news_limit = 10
+                st.rerun()
     else:
         st.info('관련 업계 뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
 
