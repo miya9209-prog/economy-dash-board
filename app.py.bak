@@ -2,8 +2,6 @@ import json
 import math
 import re
 from datetime import datetime
-from html import escape
-from urllib.parse import quote
 
 import feedparser
 import pandas as pd
@@ -448,78 +446,6 @@ div[data-testid="stHorizontalBlock"] > div{
   border-radius: 14px;
   overflow:hidden;
 }
-
-.news-columns-box{
-  display:flex;
-  gap:22px;
-  align-items:stretch;
-}
-.news-col{
-  flex:1;
-  min-width:0;
-}
-.news-divider{
-  width:1px;
-  background:linear-gradient(180deg, rgba(120,145,184,.12) 0%, rgba(120,145,184,.45) 20%, rgba(120,145,184,.45) 80%, rgba(120,145,184,.12) 100%);
-}
-.related-sites-box{
-  margin-top: 18px;
-  padding: 18px 18px 8px 18px;
-  border:1px solid rgba(89,115,156,.30);
-  border-radius:18px;
-  background: linear-gradient(180deg, rgba(12,24,42,.82) 0%, rgba(16,30,50,.82) 100%);
-}
-.related-sites-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
-  gap: 8px 16px;
-  margin-top: 8px;
-}
-.related-site-link{
-  display:block;
-  padding: 8px 0;
-  color:#7db4ff !important;
-  text-decoration:none;
-  line-height:1.45;
-  border-bottom:1px solid rgba(89,115,156,.16);
-}
-.related-site-link:hover{
-  text-decoration:underline;
-}
-.footer-links{
-  margin-top:4px;
-  font-size:.84rem;
-}
-.footer-links a{
-  color:#9ebeff !important;
-  text-decoration:none;
-}
-.footer-links a:hover{
-  text-decoration:underline;
-}
-.policy-box{
-  margin-top: 12px;
-  padding: 22px 20px;
-  border:1px solid rgba(89,115,156,.30);
-  border-radius:18px;
-  background: linear-gradient(180deg, rgba(12,24,42,.92) 0%, rgba(18,30,49,.92) 100%);
-}
-.policy-box h1{
-  font-size:1.7rem;
-  margin:0 0 10px 0;
-}
-.policy-box h2{
-  font-size:1.12rem;
-  margin:18px 0 8px 0;
-}
-.policy-box p, .policy-box li{
-  color:#d7e2f1;
-  line-height:1.8;
-  font-size:.96rem;
-}
-@media (max-width: 1100px){
-  .related-sites-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
-}
 @media (max-width: 900px){
   .title-sub{
     font-size:.92rem;
@@ -569,9 +495,6 @@ div[data-testid="stHorizontalBlock"] > div{
   background: linear-gradient(90deg, rgba(123,167,255,.55) 0%, rgba(80,110,150,.28) 45%, rgba(80,110,150,.08) 100%);
 }
 .top-time{ font-size:.92rem; }
-  .news-columns-box{display:block;}
-  .news-divider{display:none;}
-  .related-sites-grid{grid-template-columns: repeat(2, minmax(0,1fr));}
   .seo-box{
     padding: 18px 16px;
   }
@@ -672,46 +595,6 @@ def render_card(title, value, sub_html, source=None, note=None, big=True, link=N
         html.append(f'<div class="note">{note}</div>')
     html.append("</div>")
     st.markdown("".join(html), unsafe_allow_html=True)
-
-
-def render_news_item(item):
-    title = escape(item.get("title", ""))
-    source = escape(item.get("source", ""))
-    link = item.get("link", "#")
-    return f'<a class="news-item" href="{link}" target="_blank" rel="noopener noreferrer">{title}<span class="news-source">{source}</span></a>'
-
-
-def render_related_sites_box(title, links):
-    html = [f'<div class="related-sites-box"><div class="section-title" style="margin-top:0;">{escape(title)}</div><div class="related-sites-grid">']
-    for label, url in links:
-        html.append(f'<a class="related-site-link" href="{url}" target="_blank" rel="noopener noreferrer">{escape(label)}</a>')
-    html.append('</div></div>')
-    st.markdown("".join(html), unsafe_allow_html=True)
-
-
-def compute_delta_text(curr, prev, suffix=""):
-    if curr is None or prev is None:
-        return '<span class="flat">전일 대비 정보 없음</span>'
-    diff = curr - prev
-    pct = safe_pct_change(curr, prev)
-    cls = "up" if diff > 0 else "down" if diff < 0 else "flat"
-    arrow = "▲" if diff > 0 else "▼" if diff < 0 else "■"
-    if pct is None:
-        return f'<span class="{cls}">{arrow} {diff:+,.0f}{suffix}</span>'
-    return f'<span class="{cls}">{arrow} {diff:+,.0f}{suffix} ({pct:+.2f}%)</span>'
-
-
-def parse_numeric(text_value):
-    if text_value is None:
-        return None
-    m = re.search(r'-?[0-9][0-9,]*(?:\.[0-9]+)?', str(text_value))
-    if not m:
-        return None
-    try:
-        raw = m.group(0).replace(',', '')
-        return float(raw) if '.' in raw else int(raw)
-    except Exception:
-        return None
 
 # -----------------------------
 # DATA HELPERS
@@ -893,158 +776,113 @@ def get_opinet():
 # -----------------------------
 @st.cache_data(ttl=900)
 def get_korea_market_summary():
-    summary = {
-        "date": None,
-        "trading_value_kospi_억원": None,
-        "trading_value_kosdaq_억원": None,
-        "trading_value_kospi_prev_억원": None,
-        "trading_value_kosdaq_prev_억원": None,
-        "foreign_buy_kospi_억원": None,
-        "foreign_sell_kospi_억원": None,
-        "foreign_net_kospi_억원": None,
-        "foreign_buy_kosdaq_억원": None,
-        "foreign_sell_kosdaq_억원": None,
-        "foreign_net_kosdaq_억원": None,
-        "inst_buy_kospi_억원": None,
-        "inst_sell_kospi_억원": None,
-        "inst_net_kospi_억원": None,
-        "inst_buy_kosdaq_억원": None,
-        "inst_sell_kosdaq_억원": None,
-        "inst_net_kosdaq_억원": None,
-        "deposit_million": None,
-        "deposit_prev_million": None,
-        "sources_used": [],
-    }
-
-    def record_source(name):
-        if name not in summary["sources_used"]:
-            summary["sources_used"].append(name)
-
-    def parse_date(text):
-        for p in [r'(20[0-9]{2}[.-][0-9]{2}[.-][0-9]{2})', r'(20[0-9]{2}/[0-9]{2}/[0-9]{2})']:
-            m = re.search(p, text)
-            if m:
-                return m.group(1).replace('-', '.').replace('/', '.')
-        return None
-
-    def parse_naver_index(url):
-        out = {}
+    def parse_page(url):
+        out = {
+            "date": None,
+            "trading_value_억원": None,
+            "foreign_억원": None,
+            "inst_억원": None,
+        }
         try:
             r = requests.get(url, headers=HEADERS, timeout=10)
             if not r.ok:
                 return out
-            text = re.sub(r'\s+', ' ', r.text)
-            out['date'] = parse_date(text)
-            tv = re.search(r'거래대금[^0-9-]{0,20}([0-9,]+)', text)
-            if tv:
-                out['trading_value_억원'] = int(tv.group(1).replace(',', ''))
-            fnet = re.search(r'외국인[^-0-9]{0,20}(-?[0-9,]+)', text)
-            if fnet:
-                out['foreign_net_억원'] = int(fnet.group(1).replace(',', ''))
-            inet = re.search(r'기관[^-0-9]{0,20}(-?[0-9,]+)', text)
-            if inet:
-                out['inst_net_억원'] = int(inet.group(1).replace(',', ''))
-        except Exception:
-            return out
-        return out
+            text = re.sub(r"\s+", " ", r.text)
 
-    def parse_krx_homepage():
-        out = {}
-        try:
-            r = requests.get('https://data.krx.co.kr/contents/MDC/MAIN/main/index.cmd', headers=HEADERS, timeout=10)
-            if not r.ok:
-                return out
-            text = re.sub(r'\s+', ' ', r.text)
-            # KRX main page often exposes market summaries in 십억원 units.
-            block = re.search(r'투자자별 매매동향(.*?)(시장별 매매동향|상장종목 현황)', text)
-            src = block.group(1) if block else text
-            for market in ['KOSPI', 'KOSDAQ']:
-                # example pattern: KOSPI ... 기관(십억원), 2,773, 2,833, 61. 외국인(십억원), 5,827, 3,324, -2,503
-                m = re.search(rf'{market}.*?기관\(십억원\)[^0-9-]*([0-9,.-]+)[^0-9-]+([0-9,.-]+)[^0-9-]+([0-9,.-]+).*?외국인\(십억원\)[^0-9-]*([0-9,.-]+)[^0-9-]+([0-9,.-]+)[^0-9-]+([0-9,.-]+)', src)
+            date_patterns = [
+                r"(20[0-9]{2}\.[0-9]{2}\.[0-9]{2})",
+                r"(20[0-9]{2}-[0-9]{2}-[0-9]{2})",
+            ]
+            for p in date_patterns:
+                m = re.search(p, text)
                 if m:
-                    out[f'inst_sell_{market.lower()}_억원'] = int(float(m.group(1).replace(',', '')) * 10)
-                    out[f'inst_buy_{market.lower()}_억원'] = int(float(m.group(2).replace(',', '')) * 10)
-                    out[f'inst_net_{market.lower()}_억원'] = int(float(m.group(3).replace(',', '')) * 10)
-                    out[f'foreign_sell_{market.lower()}_억원'] = int(float(m.group(4).replace(',', '')) * 10)
-                    out[f'foreign_buy_{market.lower()}_억원'] = int(float(m.group(5).replace(',', '')) * 10)
-                    out[f'foreign_net_{market.lower()}_억원'] = int(float(m.group(6).replace(',', '')) * 10)
-            m2 = re.search(r'시장별 매매동향.*?직전영업일[^0-9]{0,20}거래대금[^0-9]{0,20}KOSPI[^0-9]{0,20}([0-9,.-]+).*?KOSDAQ[^0-9]{0,20}([0-9,.-]+)', text)
-            if m2:
-                out['trading_value_kospi_억원'] = int(float(m2.group(1).replace(',', '')) * 10)
-                out['trading_value_kosdaq_억원'] = int(float(m2.group(2).replace(',', '')) * 10)
-            out['date'] = parse_date(text)
-        except Exception:
-            return out
-        return out
-
-    def parse_deposit_pages():
-        out = {}
-        urls = [
-            'https://finance.naver.com/sise/sise_deposit.naver',
-            'https://finance.naver.com/sise/sise_deposit.naver?menu=market_sum',
-            'https://freesis.kofia.or.kr/',
-        ]
-        for url in urls:
-            try:
-                r = requests.get(url, headers=HEADERS, timeout=10)
-                if not r.ok:
-                    continue
-                text = re.sub(r'\s+', ' ', r.text)
-                if out.get('date') is None:
-                    out['date'] = parse_date(text)
-                patterns = [
-                    r'고객예탁금[^0-9-]{0,20}([0-9,]{4,})',
-                    r'투자자예탁금[^0-9-]{0,20}([0-9,]{4,})',
-                    r'고객예탁금[^0-9-]{0,40}전일대비[^-0-9]{0,20}(-?[0-9,]{1,})',
-                ]
-                if out.get('deposit_million') is None:
-                    m = re.search(patterns[0], text) or re.search(patterns[1], text)
-                    if m:
-                        raw = int(m.group(1).replace(',', ''))
-                        # usually displayed in 억원 or 백만원; normalize to million KRW conservatively.
-                        out['deposit_million'] = raw * 100 if raw < 10_000_000 else raw
-                if out.get('deposit_prev_million') is None:
-                    m2 = re.search(r'(고객예탁금|투자자예탁금).*?전일대비[^-0-9]{0,20}(-?[0-9,]{1,})', text)
-                    if m2 and out.get('deposit_million') is not None:
-                        delta_raw = int(m2.group(2).replace(',', ''))
-                        delta_million = delta_raw * 100 if abs(delta_raw) < 10_000_000 else delta_raw
-                        out['deposit_prev_million'] = out['deposit_million'] - delta_million
-                if out.get('deposit_million') is not None:
+                    out["date"] = m.group(1)
                     break
-            except Exception:
-                continue
+
+            tv_patterns = [
+                r"거래대금\s*([0-9,]+)\s*억원",
+                r"거래대금[^0-9]{0,20}([0-9,]+)",
+            ]
+            for p in tv_patterns:
+                m = re.search(p, text)
+                if m:
+                    try:
+                        out["trading_value_억원"] = int(m.group(1).replace(",", ""))
+                        break
+                    except Exception:
+                        pass
+
+            foreign_patterns = [
+                r"외국인\s*(-?[0-9,]+)\s*억원",
+                r"외국인[^-0-9]{0,20}(-?[0-9,]+)",
+            ]
+            for p in foreign_patterns:
+                m = re.search(p, text)
+                if m:
+                    try:
+                        out["foreign_억원"] = int(m.group(1).replace(",", ""))
+                        break
+                    except Exception:
+                        pass
+
+            inst_patterns = [
+                r"기관\s*(-?[0-9,]+)\s*억원",
+                r"기관[^-0-9]{0,20}(-?[0-9,]+)",
+            ]
+            for p in inst_patterns:
+                m = re.search(p, text)
+                if m:
+                    try:
+                        out["inst_억원"] = int(m.group(1).replace(",", ""))
+                        break
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         return out
 
-    kospi = parse_naver_index('https://finance.naver.com/sise/sise_index.naver?code=KOSPI')
-    kosdaq = parse_naver_index('https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ')
-    if kospi:
-        record_source('네이버 금융 코스피')
-    if kosdaq:
-        record_source('네이버 금융 코스닥')
+    kospi = parse_page("https://finance.naver.com/sise/sise_index.naver?code=KOSPI")
+    kosdaq = parse_page("https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ")
 
-    krx = parse_krx_homepage()
-    if krx:
-        record_source('한국거래소 KRX Data')
+    if kospi["trading_value_억원"] is None:
+        h_kospi = parse_page("https://markets.hankyung.com/indices/kospi")
+        for k, v in h_kospi.items():
+            if kospi.get(k) is None and v is not None:
+                kospi[k] = v
 
-    dep = parse_deposit_pages()
-    if dep:
-        record_source('네이버 금융/FreeSIS')
+    if kosdaq["trading_value_억원"] is None:
+        h_kosdaq = parse_page("https://markets.hankyung.com/indices/kosdaq")
+        for k, v in h_kosdaq.items():
+            if kosdaq.get(k) is None and v is not None:
+                kosdaq[k] = v
 
-    summary['date'] = kospi.get('date') or kosdaq.get('date') or krx.get('date') or dep.get('date')
-    summary['trading_value_kospi_억원'] = kospi.get('trading_value_억원') or krx.get('trading_value_kospi_억원')
-    summary['trading_value_kosdaq_억원'] = kosdaq.get('trading_value_억원') or krx.get('trading_value_kosdaq_억원')
-    summary['foreign_net_kospi_억원'] = krx.get('foreign_net_kospi_억원') or kospi.get('foreign_net_억원')
-    summary['foreign_net_kosdaq_억원'] = krx.get('foreign_net_kosdaq_억원') or kosdaq.get('foreign_net_억원')
-    summary['inst_net_kospi_억원'] = krx.get('inst_net_kospi_억원') or kospi.get('inst_net_억원')
-    summary['inst_net_kosdaq_억원'] = krx.get('inst_net_kosdaq_억원') or kosdaq.get('inst_net_억원')
-    for key in [
-        'foreign_buy_kospi_억원','foreign_sell_kospi_억원','foreign_buy_kosdaq_억원','foreign_sell_kosdaq_억원',
-        'inst_buy_kospi_억원','inst_sell_kospi_억원','inst_buy_kosdaq_억원','inst_sell_kosdaq_억원'
-    ]:
-        summary[key] = krx.get(key)
-    summary['deposit_million'] = dep.get('deposit_million')
-    summary['deposit_prev_million'] = dep.get('deposit_prev_million')
-    return summary
+    deposit_million = None
+    for url in ["https://freesis.kofia.or.kr/", "https://www.kofia.or.kr/"]:
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=10)
+            if not r.ok:
+                continue
+            text = re.sub(r"\s+", " ", r.text)
+            m = re.search(r"투자자예탁금[^0-9]{0,50}([0-9,]{5,})", text)
+            if m:
+                deposit_million = int(m.group(1).replace(",", ""))
+                break
+        except Exception:
+            continue
+
+    return {
+        "date": kospi.get("date") or kosdaq.get("date"),
+        "trading_value_kospi_억원": kospi.get("trading_value_억원"),
+        "trading_value_kosdaq_억원": kosdaq.get("trading_value_억원"),
+        "trading_value_kospi_prev_억원": None,
+        "trading_value_kosdaq_prev_억원": None,
+        "foreign_net_kospi_억원": kospi.get("foreign_억원"),
+        "foreign_net_kosdaq_억원": kosdaq.get("foreign_억원"),
+        "inst_net_kospi_억원": kospi.get("inst_억원"),
+        "inst_net_kosdaq_억원": kosdaq.get("inst_억원"),
+        "deposit_million": deposit_million,
+        "deposit_prev_million": None,
+    }
 
 # -----------------------------
 # TABLE / NEWS / SEARCH DATA
@@ -1085,7 +923,7 @@ def get_news():
     for source, url in feeds:
         try:
             parsed = feedparser.parse(url)
-            for ent in parsed.entries[:4]:
+            for ent in parsed.entries[:3]:
                 title = getattr(ent, "title", "").strip()
                 link = getattr(ent, "link", "").strip()
                 if title and link:
@@ -1096,91 +934,10 @@ def get_news():
     out = []
     seen = set()
     for item in items:
-        key = item["title"]
-        if key not in seen:
-            seen.add(key)
+        if item["title"] not in seen:
+            seen.add(item["title"])
             out.append(item)
     return out[:10]
-
-
-@st.cache_data(ttl=900)
-def get_industry_news():
-    keyword_groups = {
-        '패션': ['패션', '의류', '섬유', '브랜드'],
-        '유통': ['유통', '리테일', '백화점', '편의점', '커머스', '쇼핑'],
-        'IT': ['IT', 'AI', '반도체', '플랫폼', '클라우드', 'SaaS', '테크', '디지털'],
-        '온라인마케팅': ['마케팅', '광고', '이커머스', '온라인', 'SNS', '검색광고', '퍼포먼스'],
-    }
-    feeds = [
-        ("전자신문", "https://www.etnews.com/rss/02000000000.xml"),
-        ("블로터", "https://www.bloter.net/feed"),
-        ("아이뉴스24", "https://www.inews24.com/rss/it.xml"),
-        ("ZDNet Korea", "https://zdnet.co.kr/view/?no=feed"),
-        ("한국섬유신문", "http://www.ktnews.com/rss/allArticle.xml"),
-        ("패션채널", "http://www.fashionchannel.co.kr/rss/allArticle.xml"),
-        ("한국패션신문", "http://www.ktnews.com/rss/clickTop.xml"),
-        ("한국경제", "https://www.hankyung.com/feed/all-news"),
-        ("매일경제", "https://www.mk.co.kr/rss/30000001/"),
-        ("서울경제", "https://www.sedaily.com/RSSFeed.xml"),
-        ("창조경제혁신센터", "https://ccei.creativekorea.or.kr/rss/boardList.do?boardSeq=1"),
-        ("중소벤처기업부", "https://www.mss.go.kr/site/smba/ex/bbs/List.do?cbIdx=86"),
-    ]
-    items = []
-    seen = set()
-    keywords = [kw.lower() for kws in keyword_groups.values() for kw in kws]
-    for source, url in feeds:
-        try:
-            parsed = feedparser.parse(url)
-            for ent in parsed.entries[:10]:
-                title = getattr(ent, "title", "").strip()
-                link = getattr(ent, "link", "").strip()
-                summary = (getattr(ent, "summary", "") or getattr(ent, "description", "")).strip()
-                if not title or not link:
-                    continue
-                corpus = f"{title} {summary}".lower()
-                if not any(kw in corpus for kw in keywords):
-                    continue
-                key = title
-                if key in seen:
-                    continue
-                seen.add(key)
-                label = source
-                for group, kws in keyword_groups.items():
-                    if any(kw.lower() in corpus for kw in kws):
-                        label = f"{source} · {group}"
-                        break
-                items.append({"title": title, "link": link, "source": label})
-        except Exception:
-            continue
-    return items[:10]
-
-
-RELATED_SITE_LINKS = [
-    ("한국은행 ECOS", "https://ecos.bok.or.kr/"),
-    ("한국은행 기준금리 추이", "https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643"),
-    ("네이버 코스피", "https://finance.naver.com/sise/sise_index.naver?code=KOSPI"),
-    ("네이버 코스닥", "https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ"),
-    ("금융투자협회 FreeSIS", "https://freesis.kofia.or.kr/"),
-    ("오피넷", "https://www.opinet.co.kr/"),
-    ("금시세닷컴", "https://www.kumsise.com/main/index.php"),
-    ("한국금거래소 금시세", "https://koreagoldx.co.kr/price/gold"),
-    ("한국경제신문", "https://www.hankyung.com/"),
-    ("매일경제", "https://www.mk.co.kr/"),
-    ("서울경제", "https://www.sedaily.com/"),
-    ("시동위키", "https://www.youtube.com/channel/UCdwlSE2aW2VCCQIS5aJwTsA"),
-    ("삼프로TV", "https://www.youtube.com/@3protv"),
-    ("김작가TV", "https://www.youtube.com/@lucky_tv"),
-    ("월급쟁이부자들 TV", "https://www.youtube.com/@weolbu_official"),
-    ("부읽남TV", "https://www.youtube.com/@buiknam_tv"),
-    ("경향신문 경제", "https://www.khan.co.kr/economy"),
-    ("한겨레 경제", "https://www.hani.co.kr/arti/economy/"),
-    ("전자신문", "https://www.etnews.com/"),
-    ("블로터", "https://www.bloter.net/"),
-    ("한국패션신문", "http://www.ktnews.com/"),
-    ("패션채널", "http://www.fashionchannel.co.kr/"),
-    ("창조경제혁신센터", "https://ccei.creativekorea.or.kr/"),
-    ("중소벤처기업부", "https://www.mss.go.kr/"),
-]
 
 # -----------------------------
 # STOCK UNIVERSE
@@ -1394,35 +1151,6 @@ def inject_auto_refresh(interval_seconds=3600):
     """, height=0, width=0)
 
 # -----------------------------
-# SIMPLE PAGE ROUTER
-# -----------------------------
-page_mode = st.query_params.get("page", "main")
-
-if page_mode == "policy":
-    st.markdown('<div class="main-title">개인정보처리방침 · 서비스약관 <span class="en">(POLICY)</span></div>', unsafe_allow_html=True)
-    st.markdown('<div class="title-sub">MISHARP 투데이 경제정보 서비스 이용을 위한 기본 정책 안내 페이지입니다.</div>', unsafe_allow_html=True)
-    st.markdown('<div class="title-divider"></div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="policy-box">
-      <h1>개인정보처리방침 · 서비스약관</h1>
-      <p>본 페이지는 MISHARP 투데이 경제정보의 기본 안내용 정책 페이지입니다. 현재 서비스는 공개 경제지표와 뉴스 링크를 제공하는 정보형 페이지이며, 별도의 회원가입 기능이나 결제 기능을 운영하지 않습니다.</p>
-
-      <h2>1. 개인정보 처리방침</h2>
-      <p>본 서비스는 이용자의 이름, 연락처, 결제정보와 같은 민감한 개인정보를 직접 수집하지 않습니다. 단, Streamlit 호스팅 환경 또는 웹서버의 기본 로그에는 접속 시간, 브라우저 정보, IP 등 최소한의 기술 정보가 일시적으로 기록될 수 있습니다.</p>
-      <p>수집되는 기술 정보는 서비스 안정화, 오류 확인, 보안 점검 목적 범위 안에서만 활용되며, 별도 마케팅 목적으로 판매하거나 제공하지 않습니다.</p>
-
-      <h2>2. 서비스 약관</h2>
-      <p>본 서비스는 투자 판단을 돕기 위한 참고용 정보 페이지입니다. 제공되는 지표, 뉴스, 링크는 외부 공개 데이터를 바탕으로 표시되며 실시간 지연, 오차, 누락이 발생할 수 있습니다. 최종 투자 및 경영 판단은 이용자 본인 책임입니다.</p>
-      <p>외부 링크를 통해 이동한 사이트의 콘텐츠, 서비스, 보안, 개인정보 처리 기준은 해당 사이트 정책을 따릅니다.</p>
-
-      <h2>3. 문의 및 고지</h2>
-      <p>정책 문구는 서비스 운영 상황에 따라 변경될 수 있으며, 변경 시 본 페이지에서 업데이트됩니다.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="footer">2026 MISHARP COMPANY by MIYAWA<div class="footer-links"><a href="?page=main">메인으로 돌아가기</a></div></div>', unsafe_allow_html=True)
-    st.stop()
-
-# -----------------------------
 # DATA LOAD
 # -----------------------------
 kst = datetime.now(pytz.timezone("Asia/Seoul"))
@@ -1586,26 +1314,13 @@ st.markdown(build_section_title('오늘의 한국증시', CARD_LINKS['market_ove
 
 deposit_eok = million_to_eok(market_over.get('deposit_million'))
 deposit_prev_eok = million_to_eok(market_over.get('deposit_prev_million'))
-source_note = " / ".join(market_over.get("sources_used", [])) if market_over.get("sources_used") else "공개 페이지 다중 파싱"
-
-def flow_detail(prefix, market_code):
-    buy = market_over.get(f"{prefix}_buy_{market_code}_억원")
-    sell = market_over.get(f"{prefix}_sell_{market_code}_억원")
-    net = market_over.get(f"{prefix}_net_{market_code}_억원")
-    if buy is not None and sell is not None:
-        net_txt = fmt_billion_krw(net) if net is not None else '-'
-        return f"매수 {fmt_billion_krw(buy)} / 매도 {fmt_billion_krw(sell)} / 순매수 {net_txt}"
-    if net is not None:
-        return f"순매수 {fmt_billion_krw(net)}"
-    return "-"
-
 market_rows = {
     "종합주가지수": f"코스피 {fmt_num(kospi['price']) if kospi else '-'} / 코스닥 {fmt_num(kosdaq['price']) if kosdaq else '-'}",
     "기준일": market_over.get("date") or "-",
     "거래대금": f"코스피 {billion_with_delta(market_over.get('trading_value_kospi_억원'), market_over.get('trading_value_kospi_prev_억원'))} / 코스닥 {billion_with_delta(market_over.get('trading_value_kosdaq_억원'), market_over.get('trading_value_kosdaq_prev_억원'))}",
     "고객예탁금": billion_with_delta(deposit_eok, deposit_prev_eok),
-    "외국인 동향": f"코스피 {flow_detail('foreign', 'kospi')} / 코스닥 {flow_detail('foreign', 'kosdaq')}<br><span class='flat'>연결 소스: {source_note}</span>",
-    "기관 동향": f"코스피 {flow_detail('inst', 'kospi')} / 코스닥 {flow_detail('inst', 'kosdaq')}<br><span class='flat'>연결 소스: {source_note}</span>",
+    "외국인 동향": f"코스피 순매수 {fmt_billion_krw(market_over.get('foreign_net_kospi_억원'))} / 코스닥 순매수 {fmt_billion_krw(market_over.get('foreign_net_kosdaq_억원'))}<br><span class='flat'>현재 공개 연결 데이터는 순매수 기준입니다.</span>",
+    "기관 동향": f"코스피 순매수 {fmt_billion_krw(market_over.get('inst_net_kospi_억원'))} / 코스닥 순매수 {fmt_billion_krw(market_over.get('inst_net_kosdaq_억원'))}<br><span class='flat'>현재 공개 연결 데이터는 순매수 기준입니다.</span>",
 }
 
 rows = ['<table class="market-mini"><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>']
@@ -1682,32 +1397,45 @@ if search_clicked and search_q:
 # -----------------------------
 # NEWS + LINKS
 # -----------------------------
-st.markdown('<div class="news-columns-box">', unsafe_allow_html=True)
-news_left, news_divider, news_right = st.columns([1, 0.03, 1])
-with news_left:
+left, right = st.columns([1.45, 1])
+with left:
     st.markdown('<div class="section-title">오늘 꼭 확인할 주요 경제뉴스</div>', unsafe_allow_html=True)
     news_items = get_news()
     if news_items:
         st.markdown('<div class="news-wrap">', unsafe_allow_html=True)
         for item in news_items:
-            st.markdown(render_news_item(item), unsafe_allow_html=True)
+            st.markdown(
+                f'<a class="news-item" href="{item["link"]}" target="_blank">{item["title"]}<span class="news-source">{item["source"]}</span></a>',
+                unsafe_allow_html=True
+            )
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info('뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
-with news_divider:
-    st.markdown('<div class="news-divider"></div>', unsafe_allow_html=True)
-with news_right:
-    st.markdown('<div class="section-title">오늘의 패션 · 유통 · IT · 온라인마케팅 뉴스</div>', unsafe_allow_html=True)
-    industry_news = get_industry_news()
-    if industry_news:
-        st.markdown('<div class="news-wrap">', unsafe_allow_html=True)
-        for item in industry_news:
-            st.markdown(render_news_item(item), unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info('관련 업계 뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+        st.info("뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
-render_related_sites_box('관련정보 사이트', RELATED_SITE_LINKS)
+with right:
+    st.markdown('<div class="section-title">주요 경제정보 확인 사이트</div>', unsafe_allow_html=True)
+    st.markdown('''
+    <div class="link-list">
+      <a href="https://ecos.bok.or.kr/" target="_blank">한국은행 ECOS</a>
+      <a href="https://www.bok.or.kr/portal/singl/baseRate/list.do?dataSeCd=01&menuNo=200643" target="_blank">한국은행 기준금리 추이</a>
+      <a href="https://finance.naver.com/sise/sise_index.naver?code=KOSPI" target="_blank">네이버 코스피</a>
+      <a href="https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ" target="_blank">네이버 코스닥</a>
+      <a href="https://freesis.kofia.or.kr/" target="_blank">금융투자협회 FreeSIS</a>
+      <a href="https://www.opinet.co.kr/" target="_blank">오피넷</a>
+      <a href="https://www.kumsise.com/main/index.php" target="_blank">금시세닷컴</a>
+      <a href="https://koreagoldx.co.kr/price/gold" target="_blank">한국금거래소 금시세</a>
+      <a href="https://www.hankyung.com/" target="_blank">한국경제신문</a>
+      <a href="https://www.mk.co.kr/" target="_blank">매일경제</a>
+      <a href="https://www.sedaily.com/" target="_blank">서울경제</a>
+      <a href="https://www.youtube.com/channel/UCdwlSE2aW2VCCQIS5aJwTsA" target="_blank">시동위키</a>
+      <a href="https://www.youtube.com/@3protv" target="_blank">삼프로TV</a>
+      <a href="https://www.youtube.com/@lucky_tv" target="_blank">김작가TV</a>
+      <a href="https://www.youtube.com/@weolbu_official" target="_blank">월급쟁이부자들 TV</a>
+      <a href="https://www.youtube.com/@buiknam_tv" target="_blank">부읽남TV</a>
+      <a href="https://www.khan.co.kr/economy" target="_blank">경향신문 경제섹션</a>
+      <a href="https://www.hani.co.kr/arti/economy/" target="_blank">한겨레 경제섹션</a>
+    </div>
+    ''', unsafe_allow_html=True)
 
 # -----------------------------
 # SEO CONTENT
@@ -1765,6 +1493,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown(
-    '<div class="footer">2026 MISHARP COMPANY by MIYAWA<br>무단 게재, 복재, 전제를 금합니다.<div class="footer-links"><a href="?page=policy">개인정보처리방침 · 서비스약관</a></div></div>',
+    '<div class="footer">2026 MISHARP COMPANY by MIYAWA<br>무단 게재, 복재, 전제를 금합니다.</div>',
     unsafe_allow_html=True
 )
