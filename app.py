@@ -2,8 +2,8 @@ import json
 import math
 import re
 from datetime import datetime
-from html import escape
-from urllib.parse import quote
+from html import escape, unescape
+from urllib.parse import quote, urljoin
 
 import feedparser
 import pandas as pd
@@ -689,6 +689,74 @@ def render_related_sites_box(title, links):
     st.markdown("".join(html), unsafe_allow_html=True)
 
 
+def strip_tags(value):
+    if not value:
+        return ""
+    value = re.sub(r'<[^>]+>', ' ', str(value))
+    value = unescape(value)
+    value = re.sub(r'\s+', ' ', value).strip()
+    return value
+
+
+def extract_html_articles(source, url, allowed_path_keywords=None, excluded_keywords=None, limit=20):
+    allowed_path_keywords = allowed_path_keywords or []
+    excluded_keywords = [kw.lower() for kw in (excluded_keywords or [])]
+    items = []
+    seen = set()
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=12)
+        if res.status_code != 200:
+            return []
+        html = res.text
+        pattern = re.compile(r"<a[^>]+href=['\"]([^'\"]+)['\"][^>]*>(.*?)</a>", re.I | re.S)
+        for href, inner in pattern.findall(html):
+            full = urljoin(url, href.strip())
+            low = full.lower()
+            if not full.startswith('http'):
+                continue
+            if allowed_path_keywords and not any(k.lower() in low for k in allowed_path_keywords):
+                continue
+            if any(k in low for k in excluded_keywords):
+                continue
+            title = strip_tags(inner)
+            if not title or len(title) < 8:
+                continue
+            if title in seen:
+                continue
+            seen.add(title)
+            items.append({"title": title, "link": full, "source": source})
+            if len(items) >= limit:
+                break
+    except Exception:
+        return []
+    return items
+
+
+def normalize_news_title(title):
+    title = strip_tags(title)
+    title = re.sub(r'\[[^\]]+\]', ' ', title)
+    title = re.sub(r'\s+', ' ', title).strip()
+    return title
+
+
+def unique_news(items, limit=50):
+    out = []
+    seen = set()
+    for item in items:
+        title = normalize_news_title(item.get('title', ''))
+        link = item.get('link', '').strip()
+        if not title or not link:
+            continue
+        key = re.sub(r'[^0-9A-Za-z가-힣]+', '', title).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"title": title, "link": link, "source": item.get('source', '')})
+        if len(out) >= limit:
+            break
+    return out
+
+
 def compute_delta_text(curr, prev, suffix=""):
     if curr is None or prev is None:
         return '<span class="flat">전일 대비 정보 없음</span>'
@@ -1085,31 +1153,24 @@ def get_news():
     for source, url in feeds:
         try:
             parsed = feedparser.parse(url)
-            for ent in parsed.entries[:4]:
+            for ent in parsed.entries[:18]:
                 title = getattr(ent, "title", "").strip()
                 link = getattr(ent, "link", "").strip()
                 if title and link:
                     items.append({"title": title, "link": link, "source": source})
         except Exception:
             continue
-
-    out = []
-    seen = set()
-    for item in items:
-        key = item["title"]
-        if key not in seen:
-            seen.add(key)
-            out.append(item)
-    return out[:10]
+    return unique_news(items, limit=50)
 
 
 @st.cache_data(ttl=900)
 def get_industry_news():
     keyword_groups = {
-        '패션': ['패션', '의류', '섬유', '브랜드'],
-        '유통': ['유통', '리테일', '백화점', '편의점', '커머스', '쇼핑'],
-        'IT': ['IT', 'AI', '반도체', '플랫폼', '클라우드', 'SaaS', '테크', '디지털'],
-        '온라인마케팅': ['마케팅', '광고', '이커머스', '온라인', 'SNS', '검색광고', '퍼포먼스'],
+        '패션': ['패션', '의류', '섬유', '브랜드', '디자이너', '컬렉션'],
+        '유통': ['유통', '리테일', '백화점', '편의점', '커머스', '쇼핑', '면세점', '마트'],
+        'IT': ['IT', 'AI', '반도체', '플랫폼', '클라우드', 'SaaS', '테크', '디지털', '앱', '데이터'],
+        '온라인마케팅': ['마케팅', '광고', '이커머스', '온라인', 'SNS', '검색광고', '퍼포먼스', '콘텐츠', '브랜딩'],
+        '소비심리·트렌드': ['소비', '소비심리', '트렌드', '소비자', 'MZ', '매출', '구매', '수요', '라이프스타일'],
     }
     feeds = [
         ("전자신문", "https://www.etnews.com/rss/02000000000.xml"),
@@ -1117,13 +1178,15 @@ def get_industry_news():
         ("아이뉴스24", "https://www.inews24.com/rss/it.xml"),
         ("ZDNet Korea", "https://zdnet.co.kr/view/?no=feed"),
         ("한국섬유신문", "http://www.ktnews.com/rss/allArticle.xml"),
-        ("패션채널", "http://www.fashionchannel.co.kr/rss/allArticle.xml"),
-        ("한국패션신문", "http://www.ktnews.com/rss/clickTop.xml"),
         ("한국경제", "https://www.hankyung.com/feed/all-news"),
         ("매일경제", "https://www.mk.co.kr/rss/30000001/"),
         ("서울경제", "https://www.sedaily.com/RSSFeed.xml"),
-        ("창조경제혁신센터", "https://ccei.creativekorea.or.kr/rss/boardList.do?boardSeq=1"),
-        ("중소벤처기업부", "https://www.mss.go.kr/site/smba/ex/bbs/List.do?cbIdx=86"),
+    ]
+    html_sources = [
+        ("한국패션뉴스", "https://www.kfashionnews.com/", ['/news/', '/article/'], ['login', 'javascript', '#']),
+        ("패션엔", "https://www.fashionn.com/board/list_new.php?table=1006", ['article', 'news', 'board', 'list_new'], ['login', 'javascript', '#']),
+        ("패션비즈", "https://fashionbiz.co.kr/", ['/article/', '/news/'], ['login', 'javascript', '#']),
+        ("소비자경제", "https://www.consumernews.co.kr/news/articleList.html?sc_multi_code=S3&view_type=sm", ['/news/article', '/news/articleList'], ['javascript', '#']),
     ]
     items = []
     seen = set()
@@ -1131,7 +1194,7 @@ def get_industry_news():
     for source, url in feeds:
         try:
             parsed = feedparser.parse(url)
-            for ent in parsed.entries[:10]:
+            for ent in parsed.entries[:20]:
                 title = getattr(ent, "title", "").strip()
                 link = getattr(ent, "link", "").strip()
                 summary = (getattr(ent, "summary", "") or getattr(ent, "description", "")).strip()
@@ -1140,10 +1203,6 @@ def get_industry_news():
                 corpus = f"{title} {summary}".lower()
                 if not any(kw in corpus for kw in keywords):
                     continue
-                key = title
-                if key in seen:
-                    continue
-                seen.add(key)
                 label = source
                 for group, kws in keyword_groups.items():
                     if any(kw.lower() in corpus for kw in kws):
@@ -1152,7 +1211,22 @@ def get_industry_news():
                 items.append({"title": title, "link": link, "source": label})
         except Exception:
             continue
-    return items[:10]
+
+    for source, url, allowed, excluded in html_sources:
+        scraped = extract_html_articles(source, url, allowed_path_keywords=allowed, excluded_keywords=excluded, limit=18)
+        for item in scraped:
+            corpus = f"{item['title']} {item['source']}".lower()
+            label = source
+            for group, kws in keyword_groups.items():
+                if any(kw.lower() in corpus for kw in kws):
+                    label = f"{source} · {group}"
+                    break
+            if source == '소비자경제' and '소비심리·트렌드' not in label:
+                label = f"{source} · 소비심리·트렌드"
+            item['source'] = label
+            items.append(item)
+
+    return unique_news(items, limit=50)
 
 
 RELATED_SITE_LINKS = [
@@ -1176,12 +1250,16 @@ RELATED_SITE_LINKS = [
     ("한겨레 경제", "https://www.hani.co.kr/arti/economy/"),
     ("전자신문", "https://www.etnews.com/"),
     ("블로터", "https://www.bloter.net/"),
-    ("한국패션신문", "http://www.ktnews.com/"),
-    ("패션채널", "http://www.fashionchannel.co.kr/"),
+    ("한국패션뉴스", "https://www.kfashionnews.com/"),
+    ("패션엔", "https://www.fashionn.com/"),
+    ("패션비즈", "https://fashionbiz.co.kr/"),
+    ("소비자경제", "https://www.consumernews.co.kr/news/articleList.html?sc_multi_code=S3&view_type=sm"),
+    ("한국섬유신문", "http://www.ktnews.com/"),
     ("창조경제혁신센터", "https://ccei.creativekorea.or.kr/"),
     ("중소벤처기업부", "https://www.mss.go.kr/"),
 ]
 
+# -----------------------------
 # -----------------------------
 # STOCK UNIVERSE
 # -----------------------------
@@ -1586,8 +1664,6 @@ st.markdown(build_section_title('오늘의 한국증시', CARD_LINKS['market_ove
 
 deposit_eok = million_to_eok(market_over.get('deposit_million'))
 deposit_prev_eok = million_to_eok(market_over.get('deposit_prev_million'))
-source_note = " / ".join(market_over.get("sources_used", [])) if market_over.get("sources_used") else "공개 페이지 다중 파싱"
-
 def flow_detail(prefix, market_code):
     buy = market_over.get(f"{prefix}_buy_{market_code}_억원")
     sell = market_over.get(f"{prefix}_sell_{market_code}_억원")
@@ -1604,8 +1680,8 @@ market_rows = {
     "기준일": market_over.get("date") or "-",
     "거래대금": f"코스피 {billion_with_delta(market_over.get('trading_value_kospi_억원'), market_over.get('trading_value_kospi_prev_억원'))} / 코스닥 {billion_with_delta(market_over.get('trading_value_kosdaq_억원'), market_over.get('trading_value_kosdaq_prev_억원'))}",
     "고객예탁금": billion_with_delta(deposit_eok, deposit_prev_eok),
-    "외국인 동향": f"코스피 {flow_detail('foreign', 'kospi')} / 코스닥 {flow_detail('foreign', 'kosdaq')}<br><span class='flat'>연결 소스: {source_note}</span>",
-    "기관 동향": f"코스피 {flow_detail('inst', 'kospi')} / 코스닥 {flow_detail('inst', 'kosdaq')}<br><span class='flat'>연결 소스: {source_note}</span>",
+    "외국인 동향": f"코스피 {flow_detail('foreign', 'kospi')} / 코스닥 {flow_detail('foreign', 'kosdaq')}",
+    "기관 동향": f"코스피 {flow_detail('inst', 'kospi')} / 코스닥 {flow_detail('inst', 'kosdaq')}",
 }
 
 rows = ['<table class="market-mini"><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>']
@@ -1682,6 +1758,11 @@ if search_clicked and search_q:
 # -----------------------------
 # NEWS + LINKS
 # -----------------------------
+if "economy_news_limit" not in st.session_state:
+    st.session_state.economy_news_limit = 10
+if "industry_news_limit" not in st.session_state:
+    st.session_state.industry_news_limit = 10
+
 st.markdown('<div class="news-columns-box">', unsafe_allow_html=True)
 news_left, news_divider, news_right = st.columns([1, 0.03, 1])
 with news_left:
@@ -1689,9 +1770,12 @@ with news_left:
     news_items = get_news()
     if news_items:
         st.markdown('<div class="news-wrap">', unsafe_allow_html=True)
-        for item in news_items:
+        for item in news_items[:st.session_state.economy_news_limit]:
             st.markdown(render_news_item(item), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+        if st.session_state.economy_news_limit < min(50, len(news_items)) and st.button("경제뉴스 더보기", key="economy_news_more", use_container_width=True):
+            st.session_state.economy_news_limit = min(st.session_state.economy_news_limit + 10, min(50, len(news_items)))
+            st.rerun()
     else:
         st.info('뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
 with news_divider:
@@ -1701,9 +1785,12 @@ with news_right:
     industry_news = get_industry_news()
     if industry_news:
         st.markdown('<div class="news-wrap">', unsafe_allow_html=True)
-        for item in industry_news:
+        for item in industry_news[:st.session_state.industry_news_limit]:
             st.markdown(render_news_item(item), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+        if st.session_state.industry_news_limit < min(50, len(industry_news)) and st.button("패션·유통·IT·마케팅 뉴스 더보기", key="industry_news_more", use_container_width=True):
+            st.session_state.industry_news_limit = min(st.session_state.industry_news_limit + 10, min(50, len(industry_news)))
+            st.rerun()
     else:
         st.info('관련 업계 뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
 
