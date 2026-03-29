@@ -1,9 +1,6 @@
 streamlit
 pandas
-numpy
 requests
-beautifulsoup4
-feedparser
-plotly
 yfinance
-finance-datareader
+pytz
+feedparser
